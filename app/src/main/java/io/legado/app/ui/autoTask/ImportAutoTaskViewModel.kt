@@ -81,12 +81,17 @@ class ImportAutoTaskViewModel(app: Application) : BaseViewModel(app) {
         }
     }
 
-    fun importSource(text: String) {
+    fun importSource(text: String?) {
+        val sourceText = text?.trim().orEmpty()
+        if (sourceText.isBlank()) {
+            errorLiveData.postValue("ImportError:${context.getString(R.string.wrong_format)}")
+            return
+        }
         allTasks.clear()
         checkTasks.clear()
         selectStatus.clear()
         execute {
-            importSourceAwait(text.trim())
+            importSourceAwait(sourceText)
         }.onError {
             errorLiveData.postValue("ImportError:${it.localizedMessage}")
             AppLog.put("ImportError:${it.localizedMessage}", it)
