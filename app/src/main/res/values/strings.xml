@@ -106,6 +106,7 @@
     <string name="auto_task_service_desc">Run tasks in background</string>
     <string name="auto_task_interval">Interval (minutes)</string>
     <string name="auto_task_cron">Cron (min hour day month week)</string>
+    <string name="auto_task_comment">Script note</string>
     <string name="auto_task_cron_invalid">Invalid cron expression</string>
     <string name="auto_task_script">Script</string>
     <string name="auto_task_header">Headers (JSON)</string>

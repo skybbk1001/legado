@@ -10,6 +10,7 @@ data class AutoTaskRule(
     var loginUrl: String? = null,
     var loginUi: String? = null,
     var loginCheckJs: String? = null,
+    var comment: String? = null,
     var script: String = "",
     var header: String? = null,
     var jsLib: String? = null,

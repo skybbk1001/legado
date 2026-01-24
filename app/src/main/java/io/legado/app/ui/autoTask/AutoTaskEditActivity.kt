@@ -112,6 +112,7 @@ class AutoTaskEditActivity :
         fieldMap.clear()
         addField("name", rule.name, R.string.name)
         addField("cron", rule.cron?.ifBlank { AutoTask.DEFAULT_CRON }, R.string.auto_task_cron)
+        addField("comment", rule.comment, R.string.auto_task_comment)
         addField("script", rule.script, R.string.auto_task_script)
         addField("header", rule.header, R.string.auto_task_header)
         addField("jsLib", rule.jsLib, R.string.auto_task_jslib)
@@ -131,7 +132,7 @@ class AutoTaskEditActivity :
                     "script",
                     getString(R.string.auto_task_group_script),
                     true,
-                    listOf(fieldMap.getValue("script"))
+                    listOf(fieldMap.getValue("comment"), fieldMap.getValue("script"))
                 ),
                 AutoTaskEditAdapter.Section(
                     "request",
@@ -184,6 +185,7 @@ class AutoTaskEditActivity :
         val rule = task ?: AutoTaskRule()
         rule.name = name
         rule.cron = cron
+        rule.comment = getFieldValue("comment").ifBlank { null }
         rule.script = script
         rule.header = getFieldValue("header").ifBlank { null }
         rule.jsLib = getFieldValue("jsLib").ifBlank { null }
