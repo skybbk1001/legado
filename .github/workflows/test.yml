@@ -53,7 +53,7 @@ jobs:
     strategy:
       matrix:
         product: [ app ]
-        type: [ release, releaseA ]
+        type: [ release ]
       fail-fast: false
     runs-on: ubuntu-latest
     env:
@@ -91,10 +91,6 @@ jobs:
         run: |
           if [ ${{ env.type }} == 'release' ]; then
             typeName="原包名"
-          else
-            typeName="共存"
-            sed "s/'.release'/'.releaseA'/" $GITHUB_WORKSPACE/app/build.gradle  -i
-            sed 's/.release/.releaseA/'     $GITHUB_WORKSPACE/app/google-services.json -i
           fi
           echo "统一版本号"
           sed "/def version/c def version = \"${{ env.VERSION }}\"" $GITHUB_WORKSPACE/app/build.gradle  -i
@@ -173,8 +169,6 @@ jobs:
           for file in `ls *.apk`; do
             if [[ "$file" == *原包名* ]]; then
               mv "$file" $(echo $file | sed s/原包名/release/)
-            else
-              mv "$file" $(echo $file | sed s/共存/releaseA/)
             fi
           done
 
@@ -200,7 +194,6 @@ jobs:
           tag: "beta"
           body: |
             此版本为测试版，签名与正式版不同，可能存在不稳定情况，升级前请务必备份好数据。
-            releaseA 为共存版本，可同时安装使用，功能没有区别。
           prerelease: true
           artifacts: ${{ github.workspace }}/apk/*.apk
 
