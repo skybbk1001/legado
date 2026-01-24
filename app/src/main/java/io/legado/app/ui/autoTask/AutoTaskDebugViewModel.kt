@@ -48,7 +48,7 @@ class AutoTaskDebugViewModel(application: Application) : BaseViewModel(applicati
                 val protocol = AutoTaskProtocol.handle(result, context, rule.name) { msg ->
                     Debug.log(source.getKey(), msg, showTime = false)
                 }
-                val detail = protocol.summary ?: result?.toString()?.take(200)
+                val detail = result?.toString()?.take(200)
                 if (!detail.isNullOrBlank()) {
                     Debug.log(source.getKey(), detail, showTime = false)
                 }

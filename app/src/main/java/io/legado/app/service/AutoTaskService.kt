@@ -205,7 +205,7 @@ class AutoTaskService : BaseService() {
                 val protocol = AutoTaskProtocol.handle(result, this, task.name) { msg ->
                     AppLog.put("AutoTask ${task.name}: $msg")
                 }
-                val detail = (protocol.summary ?: result?.toString())?.take(200)
+                val detail = result?.toString()?.take(200)
                 val msg = if (detail.isNullOrBlank()) {
                     "AutoTask ${task.name} done (${cost}ms)."
                 } else {
