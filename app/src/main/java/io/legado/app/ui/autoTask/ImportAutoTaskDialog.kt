@@ -20,6 +20,7 @@ import io.legado.app.model.AutoTaskRule
 import io.legado.app.ui.widget.dialog.CodeDialog
 import io.legado.app.ui.widget.dialog.WaitDialog
 import io.legado.app.utils.GSON
+import io.legado.app.utils.fromJsonObject
 import io.legado.app.utils.gone
 import io.legado.app.utils.setLayout
 import io.legado.app.utils.showDialogFragment
