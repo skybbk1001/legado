@@ -120,10 +120,10 @@ class WebCodeDialog() : BaseDialogFragment(R.layout.dialog_web_code_view) {
             alert(R.string.exit, R.string.exit_no_save) {
                 positiveButton(R.string.yes) {
                     confirmShown = false
-                    dismissAllowingStateLoss()
                 }
                 negativeButton(R.string.no) {
                     confirmShown = false
+                    dismissAllowingStateLoss()
                 }
                 onDismiss {
                     confirmShown = false

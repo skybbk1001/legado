@@ -412,19 +412,31 @@
         let indent = 0;
 
         lines.forEach(function (line) {
-          const trimmed = line.trim();
+          let trimmed = line.trim();
           if (!trimmed) return;
 
-          if (/^[}\]]/.test(trimmed)) indent = Math.max(indent - 1, 0);
+          trimmed = normalizeKeywordLine(trimmed);
+          const startsWithClose = /^[}\]]/.test(trimmed);
+          if (startsWithClose) indent = Math.max(indent - 1, 0);
 
           let lineIndent = indent;
           if (/^(case\b|default\b)/.test(trimmed)) {
             lineIndent = Math.max(indent - 1, 0);
           }
-          out.push(TAB.repeat(lineIndent) + trimmed);
+          const canMerge =
+            /^(else\b|catch\b|finally\b)/.test(trimmed) &&
+            out.length > 0 &&
+            out[out.length - 1].trim().endsWith("}");
+          if (canMerge) {
+            out[out.length - 1] = out[out.length - 1] + " " + trimmed;
+          } else {
+            out.push(TAB.repeat(lineIndent) + trimmed);
+          }
 
           let delta = countBraceDelta(trimmed);
+          if (startsWithClose) delta += 1;
           indent += delta;
+          if (indent < 0) indent = 0;
 
           if (/^(case\b|default\b)/.test(trimmed) && /:\s*$/.test(trimmed)) {
             indent += 1;
@@ -510,6 +522,14 @@
           }
         });
         return result.substring(1, result.length-3);
+      }
+
+      function normalizeKeywordLine(line) {
+        return line
+          .replace(/^else\s*if\s*\(/, "else if (")
+          .replace(/^else\s*\{/, "else {")
+          .replace(/^catch\s*\(/, "catch (")
+          .replace(/^finally\s*\{/, "finally {");
       }
 
       function detectWrapper(rawText) {
