@@ -72,6 +72,10 @@
       color: var(--accent);
       background: var(--active-line);
     }
+    .btn.btn-icon {
+      padding: 6px 8px;
+      min-width: 28px;
+    }
 
     #editor-container {
       position: relative;
@@ -111,26 +115,80 @@
     }
     #code::selection { background: var(--selection); }
 
+    #measure {
+      position: absolute;
+      top: -9999px;
+      left: -9999px;
+      visibility: hidden;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-wrap: break-word;
+    }
+
     /* 搜索框 */
     #search-box {
       position: absolute;
       top: 0; right: 0;
       background: var(--toolbar-bg);
-      padding: 8px;
+      padding: 6px;
       border-bottom: 1px solid var(--border);
       border-left: 1px solid var(--border);
-      display: none;
-      align-items: center;
-      gap: 5px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
       z-index: 10;
+      transform: translateY(-100%);
+      transition: transform 0.2s ease;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
-    #search-box.visible { display: flex; }
-    #search-input {
+    #search-box.visible { transform: translateY(0); }
+    .search-row { display: flex; gap: 4px; align-items: center; }
+    .search-input {
       background: var(--bg);
       border: 1px solid var(--border);
       color: var(--text);
-      padding: 4px 8px;
-      width: 120px;
+      padding: 4px 6px;
+      font-size: 13px;
+      width: 140px;
+      border-radius: 3px;
+    }
+    .search-input:focus { border-color: var(--accent); }
+
+    #format-options {
+      position: absolute;
+      top: 44px;
+      right: 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+      padding: 8px 10px;
+      display: none;
+      z-index: 30;
+      font-size: 13px;
+    }
+    #format-options.show { display: block; }
+    #format-options .opt {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+    #format-options input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      margin: 0;
+    }
+    #format-options select {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 12px;
     }
 
     #toast {
@@ -158,19 +216,58 @@
     <button id="redoBtn" class="btn">重做</button>
     <button id="wrapBtn" class="btn">换行</button>
     <button id="formatBtn" class="btn">格式化</button>
+    <button id="formatOptionsBtn" class="btn btn-icon" title="格式化选项">▾</button>
     <button id="searchToggleBtn" class="btn">🔍</button>
   </div>
 
+  <div id="format-options">
+    <label class="opt">
+      <input id="wrapElementsToggle" type="checkbox" checked />
+      <span>元素换行</span>
+    </label>
+    <label class="opt">
+      <span>缩进</span>
+      <select id="indentSizeSelect">
+        <option value="2" selected>2</option>
+        <option value="4">4</option>
+      </select>
+    </label>
+    <label class="opt">
+      <span>宽度</span>
+      <select id="printWidthSelect">
+        <option value="80">80</option>
+        <option value="120" selected>120</option>
+        <option value="160">160</option>
+      </select>
+    </label>
+    <label class="opt">
+      <input id="singleQuoteToggle" type="checkbox" />
+      <span>单引号</span>
+    </label>
+    <label class="opt">
+      <input id="trailingCommaToggle" type="checkbox" checked />
+      <span>末尾逗号</span>
+    </label>
+  </div>
+
   <div id="search-box">
-    <input id="search-input" type="text" placeholder="查找..." />
-    <button id="findNextBtn" class="btn">↓</button>
-    <button id="replaceBtn" class="btn">替换</button>
-    <button id="closeSearchBtn" class="btn" style="border:none;">×</button>
+    <div class="search-row">
+      <input id="search-input" class="search-input" type="text" placeholder="查找..." />
+      <button id="findPrevBtn" class="btn">↑</button>
+      <button id="findNextBtn" class="btn">↓</button>
+      <button id="closeSearchBtn" class="btn" style="border:none;">×</button>
+    </div>
+    <div class="search-row">
+      <input id="replace-input" class="search-input" type="text" placeholder="替换为..." />
+      <button id="replaceBtn" class="btn">替换</button>
+      <button id="replaceAllBtn" class="btn">全部</button>
+    </div>
   </div>
 
   <div id="editor-container">
     <div id="lines">1</div>
     <textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+    <div id="measure"></div>
   </div>
 
   <div id="toast"></div>
@@ -180,29 +277,75 @@
   <script src="estree.js"></script>
   <script>
     (function () {
+      function debounce(fn, wait) {
+        let t;
+        return function (...args) {
+          clearTimeout(t);
+          t = setTimeout(() => fn.apply(this, args), wait);
+        };
+      }
+
       const code = document.getElementById("code");
       const lines = document.getElementById("lines");
+      const measure = document.getElementById("measure");
       const toast = document.getElementById("toast");
       
       let isWrap = false;
+      let wrapElements = true;
       let historyStack = [];
       let historyIndex = -1;
       let lastValue = "";
       let lastFormatter = "";
       let lastPrettierError = "";
-      
-      const TAB = "  "; // 2空格缩进
+      let tabSize = 2;
+      let printWidth = 120;
+      let singleQuote = false;
+      let trailingComma = true;
+      let TAB = "  ";
 
-      // --- 核心：行号逻辑 (性能优化版) ---
+      // --- 行号逻辑（换行时显示空行占位，不增加行号） ---
+      function buildLineNumbers(text) {
+        const rawLines = (text || "").split("\n");
+        if (!isWrap || !measure) {
+          return rawLines.map((_, i) => String(i + 1));
+        }
+
+        const style = window.getComputedStyle(code);
+        const lineHeight = parseFloat(style.lineHeight) || 20;
+        const padLeft = parseFloat(style.paddingLeft) || 0;
+        const padRight = parseFloat(style.paddingRight) || 0;
+        const width = Math.max(0, code.clientWidth - padLeft - padRight);
+
+        measure.style.fontFamily = style.fontFamily;
+        measure.style.fontSize = style.fontSize;
+        measure.style.lineHeight = style.lineHeight;
+        measure.style.width = width + "px";
+
+        const out = [];
+        for (let i = 0; i < rawLines.length; i++) {
+          const lineText = rawLines[i];
+          measure.textContent = lineText || " ";
+          const visualCount = Math.max(1, Math.round(measure.scrollHeight / lineHeight));
+          out.push(String(i + 1));
+          for (let k = 1; k < visualCount; k++) {
+            out.push("");
+          }
+        }
+        return out;
+      }
+
       const updateLines = () => {
         const val = code.value;
-        const lineCount = (val.match(/\n/g) || []).length + 1;
-        if (lines.getAttribute('data-lines') != lineCount) {
-           lines.textContent = Array.from({length: lineCount}, (_, i) => i + 1).join('\n');
-           lines.setAttribute('data-lines', lineCount);
-           lines.style.width = Math.max(3, String(lineCount).length + 1) + "ch";
+        const lineTexts = buildLineNumbers(val);
+        const lineCount = lineTexts.length;
+        if (lines.getAttribute("data-lines") != lineCount) {
+          lines.setAttribute("data-lines", lineCount);
         }
+        lines.textContent = lineTexts.join("\n");
+        const lastNumber = String((val.match(/\n/g) || []).length + 1);
+        lines.style.width = Math.max(3, lastNumber.length + 1) + "ch";
       };
+      const debouncedUpdateLines = debounce(updateLines, 30);
 
       // 滚动同步
       let ticking = false;
@@ -217,8 +360,12 @@
       });
 
       code.addEventListener("input", () => {
-        updateLines();
         saveHistory();
+        if (isWrap) {
+          debouncedUpdateLines();
+        } else {
+          updateLines();
+        }
       });
 
       // --- 历史记录 ---
@@ -262,9 +409,9 @@
       // --- 格式化核心算法 (修复版) ---
       
       // 1. 严格 JSON 格式化 (最优先)
-      function tryFormatJSON(text) {
+      function tryFormatJSON(text, compact) {
         try {
-          return JSON.stringify(JSON.parse(text), null, TAB);
+          return JSON.stringify(JSON.parse(text), null, compact ? 0 : TAB);
         } catch (e) {
           return null;
         }
@@ -383,13 +530,13 @@
 
           if (ch === "{") {
             braceDepth++;
-            out += "{\n";
+            out += wrapElements ? "{\n" : "{ ";
             if (!/\s/.test(ch)) lastNonSpace = ch;
             continue;
           }
           if (ch === "}") {
             braceDepth = Math.max(braceDepth - 1, 0);
-            out += "\n}\n";
+            out += wrapElements ? "\n}\n" : " }\n";
             if (!/\s/.test(ch)) lastNonSpace = ch;
             continue;
           }
@@ -429,7 +576,7 @@
             continue;
           }
           if (ch === "," && parenDepth === 0) {
-            out += ",\n";
+            out += wrapElements ? ",\n" : ", ";
             if (!/\s/.test(ch)) lastNonSpace = ch;
             continue;
           }
@@ -551,14 +698,15 @@
           return null;
         }
         try {
+          const width = wrapElements ? printWidth : Math.max(printWidth, 99999);
           return await window.prettier.format(codeText, {
             parser: parser || "babel",
             plugins: plugins,
-            tabWidth: 2,
+            tabWidth: tabSize,
             useTabs: false,
-            singleQuote: false,
-            trailingComma: "es5",
-            printWidth: 120
+            singleQuote: singleQuote,
+            trailingComma: trailingComma ? "es5" : "none",
+            printWidth: width
           });
         } catch (e) {
           lastPrettierError = e && e.message ? e.message : "Prettier 解析失败";
@@ -618,7 +766,7 @@
           }
 
           // 1. 尝试标准 JSON
-          let formatted = tryFormatJSON(text);
+          let formatted = tryFormatJSON(text, !wrapElements);
           if (!formatted) {
             const prettyJson = await formatWithPrettier(text, "json");
             if (prettyJson) {
@@ -715,39 +863,127 @@
         showToast("自动换行: " + (isWrap ? "开" : "关"));
       };
 
+      const formatOptionsBtn = document.getElementById("formatOptionsBtn");
+      const formatOptions = document.getElementById("format-options");
+      const wrapElementsToggle = document.getElementById("wrapElementsToggle");
+      const indentSizeSelect = document.getElementById("indentSizeSelect");
+      const printWidthSelect = document.getElementById("printWidthSelect");
+      const singleQuoteToggle = document.getElementById("singleQuoteToggle");
+      const trailingCommaToggle = document.getElementById("trailingCommaToggle");
+
+      function applyTabSize(size) {
+        tabSize = size;
+        TAB = " ".repeat(tabSize);
+        code.style.tabSize = String(tabSize);
+      }
+
+      wrapElementsToggle.checked = wrapElements;
+      indentSizeSelect.value = String(tabSize);
+      printWidthSelect.value = String(printWidth);
+      singleQuoteToggle.checked = singleQuote;
+      trailingCommaToggle.checked = trailingComma;
+      applyTabSize(tabSize);
+
+      wrapElementsToggle.addEventListener("change", () => {
+        wrapElements = wrapElementsToggle.checked;
+        showToast("元素换行: " + (wrapElements ? "开" : "关"));
+      });
+      indentSizeSelect.addEventListener("change", () => {
+        applyTabSize(parseInt(indentSizeSelect.value, 10) || 2);
+        showToast("缩进: " + tabSize);
+      });
+      printWidthSelect.addEventListener("change", () => {
+        printWidth = parseInt(printWidthSelect.value, 10) || 120;
+        showToast("宽度: " + printWidth);
+      });
+      singleQuoteToggle.addEventListener("change", () => {
+        singleQuote = singleQuoteToggle.checked;
+        showToast("单引号: " + (singleQuote ? "开" : "关"));
+      });
+      trailingCommaToggle.addEventListener("change", () => {
+        trailingComma = trailingCommaToggle.checked;
+        showToast("末尾逗号: " + (trailingComma ? "开" : "关"));
+      });
+
+      formatOptionsBtn.onclick = (e) => {
+        e.stopPropagation();
+        formatOptions.classList.toggle("show");
+      };
+      document.addEventListener("click", (e) => {
+        if (!formatOptions.classList.contains("show")) return;
+        if (formatOptions.contains(e.target) || e.target === formatOptionsBtn) return;
+        formatOptions.classList.remove("show");
+      });
+
       // 搜索功能
       const searchBox = document.getElementById("search-box");
       const searchInput = document.getElementById("search-input");
-      document.getElementById("searchToggleBtn").onclick = () => {
-        searchBox.classList.toggle("visible");
-        if (searchBox.classList.contains("visible")) searchInput.focus();
-      };
-      document.getElementById("closeSearchBtn").onclick = () => searchBox.classList.remove("visible");
+      const replaceInput = document.getElementById("replace-input");
+      const findPrevBtn = document.getElementById("findPrevBtn");
+      const findNextBtn = document.getElementById("findNextBtn");
+      const replaceBtn = document.getElementById("replaceBtn");
+      const replaceAllBtn = document.getElementById("replaceAllBtn");
+      const closeSearchBtn = document.getElementById("closeSearchBtn");
 
-      document.getElementById("findNextBtn").onclick = () => {
+      document.getElementById("searchToggleBtn").onclick = () => {
+        searchBox.classList.add("visible");
+        searchInput.focus();
+      };
+      closeSearchBtn.onclick = () => searchBox.classList.remove("visible");
+
+      function doSearch(dir) {
         const query = searchInput.value;
         if (!query) return;
         const text = code.value;
-        const startPos = code.selectionEnd;
-        let index = text.indexOf(query, startPos);
-        if (index === -1) { index = text.indexOf(query, 0); showToast("已回到顶部"); }
+        let index = -1;
+        if (dir === 1) {
+          const startPos = code.selectionEnd;
+          index = text.indexOf(query, startPos);
+          if (index === -1) index = text.indexOf(query, 0);
+        } else {
+          const startPos = Math.max(0, code.selectionStart - 1);
+          index = text.lastIndexOf(query, startPos);
+          if (index === -1) index = text.lastIndexOf(query);
+        }
         if (index !== -1) {
-            code.setSelectionRange(index, index + query.length);
-            code.focus();
-            const lineHeight = 20; 
-            const linesBefore = text.substring(0, index).split('\n').length;
-            code.scrollTop = (linesBefore * lineHeight) - (code.clientHeight / 2);
-        } else { showToast("未找到内容"); }
-      };
+          code.setSelectionRange(index, index + query.length);
+          code.focus();
+          const lineHeight = 20;
+          const linesBefore = text.substring(0, index).split("\n").length;
+          code.scrollTop = (linesBefore * lineHeight) - (code.clientHeight / 2);
+        } else {
+          showToast("未找到内容");
+        }
+      }
 
-      document.getElementById("replaceBtn").onclick = () => {
-          const query = searchInput.value;
-          const replacement = prompt("替换为:");
-          if (query && replacement !== null) {
-              code.value = code.value.split(query).join(replacement);
-              updateLines(); saveHistory(); showToast("全部替换完成");
+      function doReplace(all) {
+        const query = searchInput.value;
+        if (!query) return;
+        const replacement = replaceInput.value || "";
+        if (all) {
+          if (code.value.includes(query)) {
+            code.value = code.value.split(query).join(replacement);
+            updateLines();
+            saveHistory();
+            showToast("全部替换完成");
           }
-      };
+          return;
+        }
+        const start = code.selectionStart;
+        const end = code.selectionEnd;
+        const selected = code.value.substring(start, end);
+        if (selected === query) {
+          insertText(replacement);
+          doSearch(1);
+        } else {
+          doSearch(1);
+        }
+      }
+
+      findNextBtn.onclick = () => doSearch(1);
+      findPrevBtn.onclick = () => doSearch(-1);
+      replaceBtn.onclick = () => doReplace(false);
+      replaceAllBtn.onclick = () => doReplace(true);
 
       function insertText(text) {
         const start = code.selectionStart;
@@ -758,6 +994,69 @@
 
       // 快捷键增强
       code.addEventListener("keydown", function (e) {
+        if (e.isComposing) return;
+        const pairMap = {
+          "(": ")",
+          "[": "]",
+          "{": "}",
+          "'": "'",
+          "\"": "\"",
+          "`": "`"
+        };
+        const closeMap = {
+          ")": "(",
+          "]": "[",
+          "}": "{",
+          "'": "'",
+          "\"": "\"",
+          "`": "`"
+        };
+
+        if (!e.ctrlKey && !e.metaKey && !e.altKey && pairMap[e.key]) {
+          e.preventDefault();
+          const start = code.selectionStart;
+          const end = code.selectionEnd;
+          const selected = code.value.substring(start, end);
+          const close = pairMap[e.key];
+          const insert = e.key + selected + close;
+          code.setRangeText(insert, start, end, "end");
+          if (selected) {
+            code.setSelectionRange(start + 1, start + 1 + selected.length);
+          } else {
+            const pos = start + 1;
+            code.setSelectionRange(pos, pos);
+          }
+          code.dispatchEvent(new Event("input"));
+          return;
+        }
+
+        if (!e.ctrlKey && !e.metaKey && !e.altKey && closeMap[e.key]) {
+          const start = code.selectionStart;
+          const end = code.selectionEnd;
+          if (start === end) {
+            const next = code.value[start];
+            if (next === e.key) {
+              e.preventDefault();
+              code.setSelectionRange(start + 1, start + 1);
+              return;
+            }
+          }
+        }
+
+        if (e.key === "Backspace") {
+          const start = code.selectionStart;
+          const end = code.selectionEnd;
+          if (start === end && start > 0) {
+            const prev = code.value[start - 1];
+            const next = code.value[start];
+            if (pairMap[prev] && pairMap[prev] === next) {
+              e.preventDefault();
+              code.setRangeText("", start - 1, start + 1, "start");
+              code.dispatchEvent(new Event("input"));
+              return;
+            }
+          }
+        }
         if (e.key === "Tab") {
           e.preventDefault();
           insertText(TAB);
@@ -811,6 +1110,7 @@
         return code.value || "";
       };
       
+      window.addEventListener("resize", debouncedUpdateLines);
       updateLines();
     })();
   </script>
