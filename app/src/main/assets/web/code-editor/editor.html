@@ -145,33 +145,10 @@
     .cm-editor {
       height: 100%;
     }
-    #search-box {
-      position: absolute;
-      top: 0; right: 0;
-      background: var(--toolbar-bg);
-      padding: 6px;
+    .cm-panels.cm-panels-top {
       border-bottom: 1px solid var(--border);
-      border-left: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      z-index: 10;
-      transform: translateY(-100%);
-      transition: transform 0.2s ease;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      background: var(--toolbar-bg);
     }
-    #search-box.visible { transform: translateY(0); }
-    .search-row { display: flex; gap: 4px; align-items: center; }
-    .search-input {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 4px 6px;
-      font-size: 13px;
-      width: 140px;
-      border-radius: 3px;
-    }
-    .search-input:focus { border-color: var(--accent); }
 
     #format-options {
       position: absolute;
@@ -327,20 +304,6 @@
     </label>
   </div>
 
-  <div id="search-box">
-    <div class="search-row">
-      <input id="search-input" class="search-input" type="text" placeholder="查找..." />
-      <button id="findPrevBtn" class="btn">↑</button>
-      <button id="findNextBtn" class="btn">↓</button>
-      <button id="closeSearchBtn" class="btn" style="border:none;">×</button>
-    </div>
-    <div class="search-row">
-      <input id="replace-input" class="search-input" type="text" placeholder="替换为..." />
-      <button id="replaceBtn" class="btn">替换</button>
-      <button id="replaceAllBtn" class="btn">全部</button>
-    </div>
-  </div>
-
   <div id="log-panel">
     <div id="log-header">
       <span>日志</span>
@@ -397,15 +360,7 @@
         themeSelect: $("themeSelect"),
         singleQuoteToggle: $("singleQuoteToggle"),
         trailingCommaToggle: $("trailingCommaToggle"),
-        formatOptions: $("format-options"),
-        searchBox: $("search-box"),
-        searchInput: $("search-input"),
-        replaceInput: $("replace-input"),
-        findPrevBtn: $("findPrevBtn"),
-        findNextBtn: $("findNextBtn"),
-        replaceBtn: $("replaceBtn"),
-        replaceAllBtn: $("replaceAllBtn"),
-        closeSearchBtn: $("closeSearchBtn")
+        formatOptions: $("format-options")
       };
 
       const CM = window.CodeMirrorBundle;
@@ -423,14 +378,17 @@
         lineNumbers,
         highlightActiveLineGutter,
         history,
-        historyKeymap,
-        defaultKeymap,
         undo,
         redo,
         indentOnInput,
         bracketMatching,
         syntaxHighlighting,
         defaultHighlightStyle,
+        indentUnit,
+        foldGutter,
+        highlightSelectionMatches,
+        openSearchPanel,
+        autocompletion,
         javascript
       } = CM;
 
@@ -442,7 +400,6 @@
       let singleQuote = false;
       let trailingComma = true;
       let themeMode = "auto";
-      let TAB = "  ";
 
       let logLines = [];
       let isLogOpen = false;
@@ -495,6 +452,7 @@
       const wrapComp = new Compartment();
       const themeComp = new Compartment();
       const fontComp = new Compartment();
+      const indentComp = new Compartment();
 
       function isDarkTheme() {
         return themeMode === "dark" || themeMode === "nord";
@@ -550,7 +508,9 @@
 
       function applyTabSize(size) {
         tabSize = size;
-        TAB = " ".repeat(tabSize);
+        if (view) {
+          view.dispatch({ effects: indentComp.reconfigure(indentUnit.of(" ".repeat(tabSize))) });
+        }
       }
 
       function applyFontSize(size) {
@@ -569,14 +529,18 @@
         const tabKey = { key: "Tab", run: insertTab };
         return [
           history(),
-          keymap.of([tabKey, ...defaultKeymap, ...historyKeymap]),
+          keymap.of([tabKey]),
           lineNumbers(),
           highlightActiveLineGutter(),
+          foldGutter(),
           wrapComp.of(isWrap ? EditorView.lineWrapping : []),
+          indentComp.of(indentUnit.of(" ".repeat(tabSize))),
           javascript(),
           indentOnInput(),
           bracketMatching(),
           syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+          highlightSelectionMatches(),
+          autocompletion(),
           themeComp.of(makeTheme()),
           fontComp.of(makeFontTheme())
         ];
@@ -748,69 +712,10 @@
         formatOptions.classList.remove("show");
       });
 
-      const searchBox = dom.searchBox;
-      const searchInput = dom.searchInput;
-      const replaceInput = dom.replaceInput;
-      const findPrevBtn = dom.findPrevBtn;
-      const findNextBtn = dom.findNextBtn;
-      const replaceBtn = dom.replaceBtn;
-      const replaceAllBtn = dom.replaceAllBtn;
-      const closeSearchBtn = dom.closeSearchBtn;
-
       dom.searchToggleBtn.onclick = () => {
-        searchBox.classList.add("visible");
-        searchInput.focus();
+        openSearchPanel(view);
+        view.focus();
       };
-      closeSearchBtn.onclick = () => searchBox.classList.remove("visible");
-
-      function doSearch(dir) {
-        const query = searchInput.value;
-        if (!query) return;
-        const text = getCode();
-        let index = -1;
-        const sel = view.state.selection.main;
-        if (dir === 1) {
-          const startPos = sel.to;
-          index = text.indexOf(query, startPos);
-          if (index === -1) index = text.indexOf(query, 0);
-        } else {
-          const startPos = Math.max(0, sel.from - 1);
-          index = text.lastIndexOf(query, startPos);
-          if (index === -1) index = text.lastIndexOf(query);
-        }
-        if (index !== -1) {
-          setSelectionRange(index, index + query.length);
-        } else {
-          showToast("未找到内容");
-        }
-      }
-
-      function doReplace(all) {
-        const query = searchInput.value;
-        if (!query) return;
-        const replacement = replaceInput.value || "";
-        if (all) {
-          const text = getCode();
-          if (text.includes(query)) {
-            resetDoc(text.split(query).join(replacement));
-            showToast("全部替换完成");
-          }
-          return;
-        }
-        const sel = view.state.selection.main;
-        const selected = view.state.doc.sliceString(sel.from, sel.to);
-        if (selected === query) {
-          view.dispatch({ changes: { from: sel.from, to: sel.to, insert: replacement } });
-          doSearch(1);
-        } else {
-          doSearch(1);
-        }
-      }
-
-      findNextBtn.onclick = () => doSearch(1);
-      findPrevBtn.onclick = () => doSearch(-1);
-      replaceBtn.onclick = () => doReplace(false);
-      replaceAllBtn.onclick = () => doReplace(true);
 
       const logToggleBtn = dom.logToggleBtn;
       const logCloseBtn = dom.logCloseBtn;
