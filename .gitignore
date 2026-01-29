@@ -16,5 +16,5 @@ package-lock.json
 .idea/
 # Kotlin 2.0
 .kotlin/
+.npm-cache/
 index.html
-mykey

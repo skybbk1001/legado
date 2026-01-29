@@ -1,4 +1,3 @@
-﻿
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -6,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Legado Editor Pro</title>
   <style>
-    :root {
+    body {
       --bg: #ffffff;
       --gutter-bg: #f5f5f5;
       --gutter-text: #b0b0b0;
@@ -16,10 +15,11 @@
       --accent: #0366d6;
       --toolbar-bg: #f8f9fa;
       --selection: #b3d7ff;
+      color-scheme: light;
     }
 
     @media (prefers-color-scheme: dark) {
-      :root {
+      body:not([data-theme]) {
         --bg: #1e1e1e;
         --gutter-bg: #252526;
         --gutter-text: #858585;
@@ -29,19 +29,11 @@
         --accent: #40a9ff;
         --toolbar-bg: #252526;
         --selection: #264f78;
+        color-scheme: dark;
       }
     }
 
     body[data-theme="light"] {
-      --bg: #ffffff;
-      --gutter-bg: #f5f5f5;
-      --gutter-text: #b0b0b0;
-      --text: #24292e;
-      --border: #e1e4e8;
-      --active-line: #f6f8fa;
-      --accent: #0366d6;
-      --toolbar-bg: #f8f9fa;
-      --selection: #b3d7ff;
       color-scheme: light;
     }
 
@@ -136,6 +128,7 @@
       flex: 1;
       display: flex;
       min-height: 0;
+      padding-bottom: env(safe-area-inset-bottom);
     }
 
     #editor {
@@ -243,7 +236,6 @@
   </style>
 </head>
 <body>
-
   <div id="toolbar">
     <button id="undoBtn" class="btn">撤销</button>
     <button id="redoBtn" class="btn">重做</button>
@@ -320,16 +312,71 @@
 
   <div id="toast"></div>
 
+  <script>
+    (function () {
+      function bootError(msg) {
+        var text = msg || "编辑器初始化失败";
+        var host = document.getElementById("editor");
+        var toast = document.getElementById("toast");
+        if (host) {
+          host.textContent = text;
+          host.style.padding = "12px";
+          host.style.color = "var(--text)";
+        }
+        if (toast) {
+          toast.textContent = text;
+          toast.classList.add("show");
+        }
+      }
+      window.__LEGADO_BOOT_ERROR = bootError;
+      window.__LEGADO_EDITOR_BOOTED = false;
+
+      function handleBootOrRuntimeError(kind, e) {
+        if (window.__LEGADO_EDITOR_BOOTED) {
+          if (typeof window.__LEGADO_RUNTIME_ERROR_HANDLER === "function") {
+            window.__LEGADO_RUNTIME_ERROR_HANDLER(kind, e);
+          }
+          return;
+        }
+        var msg = "发生未知错误";
+        if (kind === "promise") {
+          msg = e && e.reason != null ? String(e.reason && e.reason.message ? e.reason.message : e.reason) : msg;
+        } else {
+          msg = e && e.message ? e.message : msg;
+        }
+        bootError("脚本错误：" + msg);
+      }
+
+      window.addEventListener("error", function (e) {
+        handleBootOrRuntimeError("error", e);
+      });
+      window.addEventListener("unhandledrejection", function (e) {
+        handleBootOrRuntimeError("promise", e);
+      });
+    })();
+  </script>
+
   <script src="standalone.min.js"></script>
   <script src="babel.js"></script>
   <script src="estree.js"></script>
-  <script src="codemirror.bundle.js"></script>
+  <script src="codemirror.bundle.js" onerror="window.__LEGADO_BOOT_ERROR && window.__LEGADO_BOOT_ERROR('codemirror.bundle.js 加载失败')"></script>
+  <script>
+    // 早期兜底：如果主脚本未执行，显示提示
+    window.setTimeout(function () {
+      if (window.__LEGADO_EDITOR_BOOTED) return;
+      if (window.__LEGADO_BOOT_ERROR) {
+        window.__LEGADO_BOOT_ERROR("编辑器脚本未执行，请确认 codemirror.bundle.js 已更新并重新安装 APK。");
+      }
+    }, 1200);
+  </script>
   <script>
     (function () {
-      const $ = (id) => document.getElementById(id);
-      const LOG_MAX = 200;
-      const SETTINGS_KEY = "legado.codeEditor.formatSettings";
-      const TOAST_MS = 1500;
+      try {
+        const $ = (id) => document.getElementById(id);
+        const bootError = window.__LEGADO_BOOT_ERROR || function () {};
+        const LOG_MAX = 200;
+        const SETTINGS_KEY = "legado.codeEditor.formatSettings";
+        const TOAST_MS = 1500;
 
       function debounce(fn, wait) {
         let t;
@@ -365,8 +412,7 @@
 
       const CM = window.CodeMirrorBundle;
       if (!CM || !CM.EditorView) {
-        dom.toast.textContent = "CodeMirror 未加载";
-        dom.toast.classList.add("show");
+        bootError("CodeMirror 未加载，请确认 codemirror.bundle.js 已打包并可访问");
         return;
       }
 
@@ -389,7 +435,12 @@
         highlightSelectionMatches,
         openSearchPanel,
         autocompletion,
-        javascript
+        closeBrackets,
+        closeBracketsKeymap,
+        javascript,
+        indentMore,
+        indentLess,
+        insertNewlineAndIndent
       } = CM;
 
       let isWrap = false;
@@ -453,8 +504,10 @@
       const themeComp = new Compartment();
       const fontComp = new Compartment();
       const indentComp = new Compartment();
+      const mediaDark = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
 
       function isDarkTheme() {
+        if (themeMode === "auto") return !!(mediaDark && mediaDark.matches);
         return themeMode === "dark" || themeMode === "nord";
       }
 
@@ -521,37 +574,394 @@
       }
 
       function insertTab(view) {
+        if (indentMore && !view.state.selection.main.empty) {
+          return indentMore(view);
+        }
         view.dispatch(view.state.replaceSelection(" ".repeat(tabSize)));
         return true;
       }
 
+      // <AUTO_COMPLETIONS>
+      const CUSTOM_COMPLETIONS = {
+          "java":  {
+                       "props":  null,
+                       "methods":  [
+                                       "ajax",
+                                       "ajaxAll",
+                                       "androidId()",
+                                       "base64Decode",
+                                       "base64DecodeToByteArray",
+                                       "base64Encode",
+                                       "bytesToStr",
+                                       "cacheFile",
+                                       "connect",
+                                       "deleteFile",
+                                       "downloadFile",
+                                       "encodeURI",
+                                       "get",
+                                       "get7zByteArrayContent",
+                                       "get7zStringContent",
+                                       "getCookie",
+                                       "getFile",
+                                       "getRarByteArrayContent",
+                                       "getRarStringContent",
+                                       "getSource()",
+                                       "getTxtInFolder",
+                                       "getVerificationCode",
+                                       "getWebViewUA()",
+                                       "getZipByteArrayContent",
+                                       "getZipStringContent",
+                                       "head",
+                                       "hexDecodeToByteArray",
+                                       "hexDecodeToString",
+                                       "hexEncodeToString",
+                                       "htmlFormat",
+                                       "importScript",
+                                       "log",
+                                       "logType",
+                                       "longToast",
+                                       "md5Encode",
+                                       "md5Encode16",
+                                       "openUrl",
+                                       "post",
+                                       "queryBase64TTF",
+                                       "queryTTF",
+                                       "randomUUID()",
+                                       "readFile",
+                                       "readTxtFile",
+                                       "s2t",
+                                       "startBrowser",
+                                       "startBrowserAwait",
+                                       "strToBytes",
+                                       "t2s",
+                                       "timeFormat",
+                                       "timeFormatUTC",
+                                       "toast",
+                                       "toNumChapter",
+                                       "toURL",
+                                       "un7zFile",
+                                       "unArchiveFile",
+                                       "unrarFile",
+                                       "unzipFile",
+                                       "webView",
+                                       "webViewGetSource"
+                                   ]
+                   },
+          "source":  {
+                         "props":  [
+                                       "concurrentRate",
+                                       "enabledCookieJar",
+                                       "header",
+                                       "jsLib",
+                                       "loginUrl"
+                                   ],
+                         "methods":  [
+                                         "evalJS",
+                                         "get",
+                                         "getHeaderMap",
+                                         "getKey()",
+                                         "getLoginHeader()",
+                                         "getLoginHeaderMap()",
+                                         "getLoginInfo()",
+                                         "getLoginInfoMap()",
+                                         "getLoginJs()",
+                                         "getSource()",
+                                         "getTag()",
+                                         "getVariable()",
+                                         "login()",
+                                         "loginUi()",
+                                         "put",
+                                         "putLoginHeader",
+                                         "putLoginInfo",
+                                         "removeLoginHeader()",
+                                         "removeLoginInfo()",
+                                         "setVariable"
+                                     ]
+                     },
+          "cookie":  {
+                         "props":  null,
+                         "methods":  [
+                                         "clear()",
+                                         "cookieToMap",
+                                         "getCookie",
+                                         "getKey",
+                                         "mapToCookie",
+                                         "removeCookie",
+                                         "replaceCookie",
+                                         "setCookie"
+                                     ]
+                     },
+          "cache":  {
+                        "props":  null,
+                        "methods":  [
+                                        "delete",
+                                        "deleteMemory",
+                                        "get",
+                                        "getByteArray",
+                                        "getDouble",
+                                        "getFile",
+                                        "getFloat",
+                                        "getFromMemory",
+                                        "getInt",
+                                        "getLong",
+                                        "put",
+                                        "putFile",
+                                        "putMemory"
+                                    ]
+                    },
+          "book":  {
+                       "props":  [
+                                     "author",
+                                     "bookUrl",
+                                     "canUpdate",
+                                     "charset",
+                                     "config",
+                                     "coverUrl",
+                                     "customCoverUrl",
+                                     "customIntro",
+                                     "customTag",
+                                     "dailyChapters",
+                                     "delTag",
+                                     "downloadUrls",
+                                     "durChapterIndex",
+                                     "durChapterPos",
+                                     "durChapterTime",
+                                     "durChapterTitle",
+                                     "group",
+                                     "imageStyle",
+                                     "infoHtml",
+                                     "intro",
+                                     "kind",
+                                     "lastChapterIndex",
+                                     "lastCheckCount",
+                                     "lastCheckTime",
+                                     "latestChapterTime",
+                                     "latestChapterTitle",
+                                     "name",
+                                     "order",
+                                     "origin",
+                                     "originName",
+                                     "originOrder",
+                                     "pageAnim",
+                                     "readConfig",
+                                     "readSimulating",
+                                     "reSegment",
+                                     "reverseToc",
+                                     "splitLongChapter",
+                                     "startChapter",
+                                     "startDate",
+                                     "syncTime",
+                                     "tocHtml",
+                                     "tocUrl",
+                                     "totalChapterNum",
+                                     "ttsEngine",
+                                     "type",
+                                     "useReplaceRule",
+                                     "variable",
+                                     "variableMap",
+                                     "wordCount"
+                                 ],
+                       "methods":  [
+                                       "addDelTag",
+                                       "createBookMark()",
+                                       "delete()",
+                                       "equals",
+                                       "fileCharset()",
+                                       "getBigVariable",
+                                       "getCustomVariable()",
+                                       "getDailyChapters()",
+                                       "getDelTag",
+                                       "getDisplayCover()",
+                                       "getDisplayIntro()",
+                                       "getFolderName()",
+                                       "getImageStyle()",
+                                       "getKindList()",
+                                       "getPageAnim()",
+                                       "getReadSimulating()",
+                                       "getRealAuthor()",
+                                       "getReSegment()",
+                                       "getReverseToc()",
+                                       "getSplitLongChapter()",
+                                       "getStartChapter()",
+                                       "getStartDate()",
+                                       "getTtsEngine()",
+                                       "getUnreadChapterNum()",
+                                       "getUseReplaceRule()",
+                                       "hashCode()",
+                                       "migrateTo",
+                                       "putBigVariable",
+                                       "putCustomVariable",
+                                       "putVariable",
+                                       "removeDelTag",
+                                       "save()",
+                                       "setDailyChapters",
+                                       "setImageStyle",
+                                       "setPageAnim",
+                                       "setReadSimulating",
+                                       "setReSegment",
+                                       "setReverseToc",
+                                       "setSplitLongChapter",
+                                       "setStartChapter",
+                                       "setStartDate",
+                                       "setTtsEngine",
+                                       "setUseReplaceRule",
+                                       "toSearchBook()",
+                                       "upCustomIntro()"
+                                   ]
+                   },
+          "chapter":  {
+                          "props":  [
+                                        "baseUrl",
+                                        "bookUrl",
+                                        "end",
+                                        "endFragmentId",
+                                        "index",
+                                        "resourceUrl",
+                                        "start",
+                                        "startFragmentId",
+                                        "tag",
+                                        "title",
+                                        "titleMD5",
+                                        "url",
+                                        "variable",
+                                        "variableMap",
+                                        "wordCount"
+                                    ],
+                          "methods":  [
+                                          "equals",
+                                          "getAbsoluteURL()",
+                                          "getBigVariable",
+                                          "getFileName",
+                                          "getFontName()",
+                                          "hashCode()",
+                                          "isPay()",
+                                          "isVip()",
+                                          "isVolume()",
+                                          "primaryStr()",
+                                          "putBigVariable",
+                                          "putVariable"
+                                      ]
+                      }
+      };
+      const COMPLETION_KEYS = Object.keys(CUSTOM_COMPLETIONS);
+      const COMPLETION_REGEX = new RegExp(`^(${COMPLETION_KEYS.join("|")})\\.([\\w]*)$`);
+      // </AUTO_COMPLETIONS>
+
+      function customCompletion(context) {
+        if (!context.explicit) {
+          const prev = context.pos > 0 ? context.state.sliceDoc(context.pos - 1, context.pos) : "";
+          if (prev.trim() === "") return null;
+        }
+        const word = context.matchBefore(/[\w$.]+$/);
+        if (!word) return null;
+        if (!context.explicit && word.from === word.to) return null;
+        const m = word.text.match(COMPLETION_REGEX);
+        if (!m) return null;
+        const base = m[1];
+        const prefix = m[2] || "";
+        const entry = CUSTOM_COMPLETIONS[base] || { methods: [], props: [] };
+        const props = (entry.props || [])
+          .filter((label) => typeof label === "string" && label.startsWith(prefix))
+          .map((label) => ({ label, type: "property", detail: base }));
+        const methods = (entry.methods || [])
+          .filter((label) => typeof label === "string" && label.startsWith(prefix))
+          .map((label) => {
+            const hasParen = label.endsWith("()");
+            const insertText = hasParen ? label : label + "()";
+            return {
+              label,
+              type: "function",
+              detail: base,
+              apply: (view, completion, from, to) => {
+                const anchor = hasParen ? (from + insertText.length) : (from + insertText.length - 1);
+                view.dispatch({
+                  changes: { from, to, insert: insertText },
+                  selection: { anchor, head: anchor }
+                });
+              }
+            };
+          });
+        const options = props.concat(methods);
+        if (!options.length) return null;
+        return {
+          from: word.from + base.length + 1,
+          options,
+          validFor: /^\w*$/
+        };
+      }
+
+      function buildAutocompleteExtensions() {
+        if (!autocompletion) return [];
+        return [autocompletion({
+          activateOnTyping: true,
+          maxRenderedOptions: 200
+        })];
+      }
       function buildExtensions() {
-        const tabKey = { key: "Tab", run: insertTab };
-        return [
-          history(),
-          keymap.of([tabKey]),
-          lineNumbers(),
-          highlightActiveLineGutter(),
-          foldGutter(),
-          wrapComp.of(isWrap ? EditorView.lineWrapping : []),
-          indentComp.of(indentUnit.of(" ".repeat(tabSize))),
-          javascript(),
-          indentOnInput(),
-          bracketMatching(),
-          syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-          highlightSelectionMatches(),
-          autocompletion(),
-          themeComp.of(makeTheme()),
-          fontComp.of(makeFontTheme())
-        ];
+        const tabKey = { key: "Tab", run: insertTab, shift: indentLess || undefined };
+        const enterKey = insertNewlineAndIndent
+          ? { key: "Enter", run: insertNewlineAndIndent }
+          : null;
+        const closeKeymap = Array.isArray(closeBracketsKeymap)
+          ? closeBracketsKeymap
+          : (closeBracketsKeymap ? [closeBracketsKeymap] : []);
+        const exts = [];
+        if (typeof history === "function") exts.push(history());
+        if (keymap && typeof keymap.of === "function") {
+          const km = [tabKey, ...closeKeymap];
+          if (enterKey) km.unshift(enterKey);
+          exts.push(keymap.of(km));
+        }
+        if (typeof lineNumbers === "function") exts.push(lineNumbers());
+        if (typeof highlightActiveLineGutter === "function") exts.push(highlightActiveLineGutter());
+        if (typeof foldGutter === "function") exts.push(foldGutter());
+        if (wrapComp && EditorView && EditorView.lineWrapping) exts.push(wrapComp.of(isWrap ? EditorView.lineWrapping : []));
+        if (indentComp && indentUnit && typeof indentUnit.of === "function") {
+          exts.push(indentComp.of(indentUnit.of(" ".repeat(tabSize))));
+        }
+        if (typeof javascript === "function") exts.push(javascript());
+        if (typeof indentOnInput === "function") exts.push(indentOnInput());
+        if (typeof closeBrackets === "function") exts.push(closeBrackets());
+        if (typeof bracketMatching === "function") exts.push(bracketMatching());
+        if (typeof syntaxHighlighting === "function") {
+          exts.push(syntaxHighlighting(defaultHighlightStyle, { fallback: true }));
+        }
+        if (typeof highlightSelectionMatches === "function") exts.push(highlightSelectionMatches());
+        if (EditorState && EditorState.languageData && typeof EditorState.languageData.of === "function") {
+          exts.push(EditorState.languageData.of((state, pos, side) => [{ autocomplete: customCompletion }]));
+        }
+        exts.push(...buildAutocompleteExtensions());
+        if (themeComp) exts.push(themeComp.of(makeTheme()));
+        if (fontComp) exts.push(fontComp.of(makeFontTheme()));
+        return exts;
       }
 
       loadSettings();
 
-      let view = new EditorView({
-        state: EditorState.create({ doc: "", extensions: buildExtensions() }),
-        parent: dom.editorHost
-      });
+      let view;
+      try {
+        view = new EditorView({
+          state: EditorState.create({ doc: "", extensions: buildExtensions() }),
+          parent: dom.editorHost
+        });
+      } catch (e) {
+        appendLog("error", e && e.message ? e.message : e);
+        bootError("编辑器初始化失败: " + (e && e.message ? e.message : e));
+        return;
+      }
+      window.__LEGADO_EDITOR_BOOTED = true;
+
+      const syncAutoTheme = () => {
+        if (themeMode !== "auto") return;
+        view.dispatch({ effects: themeComp.reconfigure(makeTheme()) });
+      };
+      if (mediaDark) {
+        if (typeof mediaDark.addEventListener === "function") {
+          mediaDark.addEventListener("change", syncAutoTheme);
+        } else if (typeof mediaDark.addListener === "function") {
+          mediaDark.addListener(syncAutoTheme);
+        }
+      }
 
       function getCode() {
         return view.state.doc.toString();
@@ -560,11 +970,6 @@
       function resetDoc(text) {
         const doc = text || "";
         view.setState(EditorState.create({ doc, extensions: buildExtensions() }));
-      }
-
-      function setSelectionRange(start, end) {
-        view.dispatch({ selection: { anchor: start, head: end }, scrollIntoView: true });
-        view.focus();
       }
 
       function detectWrapper(rawText) {
@@ -713,9 +1118,14 @@
       });
 
       dom.searchToggleBtn.onclick = () => {
-        openSearchPanel(view);
-        view.focus();
+        if (typeof openSearchPanel === "function") {
+          openSearchPanel(view);
+          view.focus();
+        } else {
+          showToast("搜索模块未加载");
+        }
       };
+
 
       const logToggleBtn = dom.logToggleBtn;
       const logCloseBtn = dom.logCloseBtn;
@@ -746,8 +1156,35 @@
       }
 
       function b64ToUtf8(b64) {
-        try { return decodeURIComponent(escape(window.atob(b64))); } catch (e) { return ""; }
+        try {
+          const bin = window.atob(b64);
+          if (window.TextDecoder) {
+            const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+            return new TextDecoder("utf-8").decode(bytes);
+          }
+          return decodeURIComponent(escape(bin));
+        } catch (e) {
+          return "";
+        }
       }
+
+      window.__LEGADO_RUNTIME_ERROR_HANDLER = function (kind, e) {
+        const unknown = "发生未知错误";
+        let msg = unknown;
+        let stack = "";
+
+        if (kind === "promise") {
+          const r = e && e.reason != null ? e.reason : unknown;
+          msg = typeof r === "string" ? r : r && r.message ? r.message : String(r);
+          stack = r && r.stack ? String(r.stack) : "";
+        } else {
+          msg = e && e.message ? e.message : unknown;
+          stack = e && e.error && e.error.stack ? String(e.error.stack) : "";
+        }
+
+        appendLog(kind, msg + (stack ? "\n" + stack : ""));
+        showToast("发生错误：" + msg);
+      };
 
       window.setCodeFromAndroid = function (b64) {
         resetDoc(b64ToUtf8(b64));
@@ -779,16 +1216,6 @@
       window.addEventListener("resize", () => {
         if (fontSize === "auto") applyFontSize("auto");
       });
-      window.addEventListener("error", (e) => {
-        const msg = e && e.message ? e.message : "发生未知错误";
-        appendLog("error", msg);
-        showToast("发生错误：" + msg);
-      });
-      window.addEventListener("unhandledrejection", (e) => {
-        const reason = e && e.reason ? e.reason : "发生未知错误";
-        appendLog("promise", reason);
-        showToast("发生错误：" + reason);
-      });
       const __err = console.error.bind(console);
       console.error = function (...args) {
         const safe = args.map(a => {
@@ -798,7 +1225,28 @@
         appendLog("error", safe);
         __err(...args);
       };
+      } catch (e) {
+        const msg = e && e.message ? e.message : e;
+        if (window.__LEGADO_BOOT_ERROR) {
+          window.__LEGADO_BOOT_ERROR("编辑器初始化失败: " + msg);
+        }
+      }
     })();
   </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
