@@ -1,3 +1,4 @@
+﻿
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -31,6 +32,58 @@
       }
     }
 
+    body[data-theme="light"] {
+      --bg: #ffffff;
+      --gutter-bg: #f5f5f5;
+      --gutter-text: #b0b0b0;
+      --text: #24292e;
+      --border: #e1e4e8;
+      --active-line: #f6f8fa;
+      --accent: #0366d6;
+      --toolbar-bg: #f8f9fa;
+      --selection: #b3d7ff;
+      color-scheme: light;
+    }
+
+    body[data-theme="dark"] {
+      --bg: #1e1e1e;
+      --gutter-bg: #252526;
+      --gutter-text: #858585;
+      --text: #d4d4d4;
+      --border: #3e3e42;
+      --active-line: #2d2d30;
+      --accent: #40a9ff;
+      --toolbar-bg: #252526;
+      --selection: #264f78;
+      color-scheme: dark;
+    }
+
+    body[data-theme="sepia"] {
+      --bg: #f7f2e7;
+      --gutter-bg: #efe6d6;
+      --gutter-text: #9b8f7a;
+      --text: #3d3528;
+      --border: #e0d6c5;
+      --active-line: #f0e7d6;
+      --accent: #9a6b32;
+      --toolbar-bg: #efe6d6;
+      --selection: #d8c7ad;
+      color-scheme: light;
+    }
+
+    body[data-theme="nord"] {
+      --bg: #2e3440;
+      --gutter-bg: #3b4252;
+      --gutter-text: #8f9bb3;
+      --text: #eceff4;
+      --border: #434c5e;
+      --active-line: #3b4252;
+      --accent: #88c0d0;
+      --toolbar-bg: #3b4252;
+      --selection: #4c566a;
+      color-scheme: dark;
+    }
+
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
     body {
@@ -39,6 +92,7 @@
       color: var(--text);
       display: flex;
       flex-direction: column;
+      overscroll-behavior: none;
     }
 
     #toolbar {
@@ -84,48 +138,13 @@
       min-height: 0;
     }
 
-    #lines {
-      width: 45px;
-      padding: 10px 5px 10px 0;
-      background: var(--gutter-bg);
-      color: var(--gutter-text);
-      text-align: right;
-      font-size: 13px;
-      line-height: 1.5;
-      border-right: 1px solid var(--border);
-      overflow: hidden;
-      user-select: none;
-      white-space: pre;
-    }
-
-    #code {
+    #editor {
       flex: 1;
-      border: 0;
-      padding: 10px;
-      margin: 0;
-      font-size: 13px;
-      line-height: 1.5;
-      outline: none;
-      resize: none;
-      background: transparent;
-      color: var(--text);
-      overflow: auto;
-      white-space: pre;
-      tab-size: 2;
+      min-height: 0;
     }
-    #code::selection { background: var(--selection); }
-
-    #measure {
-      position: absolute;
-      top: -9999px;
-      left: -9999px;
-      visibility: hidden;
-      white-space: pre-wrap;
-      word-break: break-word;
-      overflow-wrap: break-word;
+    .cm-editor {
+      height: 100%;
     }
-
-    /* 搜索框 */
     #search-box {
       position: absolute;
       top: 0; right: 0;
@@ -207,6 +226,43 @@
       z-index: 20;
     }
     #toast.show { opacity: 1; }
+
+    #log-panel {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      bottom: 8px;
+      max-height: 40%;
+      display: none;
+      flex-direction: column;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+      z-index: 40;
+      overflow: hidden;
+    }
+    #log-panel.show { display: flex; }
+    #log-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--border);
+      background: var(--toolbar-bg);
+      font-size: 12px;
+    }
+    #log-header .spacer { flex: 1; }
+    #log-body {
+      margin: 0;
+      padding: 8px;
+      font-size: 12px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      word-break: break-all;
+      overflow: auto;
+      flex: 1;
+    }
   </style>
 </head>
 <body>
@@ -218,6 +274,7 @@
     <button id="formatBtn" class="btn">格式化</button>
     <button id="formatOptionsBtn" class="btn btn-icon" title="格式化选项">▾</button>
     <button id="searchToggleBtn" class="btn">🔍</button>
+    <button id="logToggleBtn" class="btn">日志</button>
   </div>
 
   <div id="format-options">
@@ -233,11 +290,31 @@
       </select>
     </label>
     <label class="opt">
+      <span>字号</span>
+      <select id="fontSizeSelect">
+        <option value="auto" selected>自动</option>
+        <option value="12">12</option>
+        <option value="13">13</option>
+        <option value="14">14</option>
+        <option value="16">16</option>
+      </select>
+    </label>
+    <label class="opt">
       <span>宽度</span>
       <select id="printWidthSelect">
         <option value="80">80</option>
         <option value="120" selected>120</option>
         <option value="160">160</option>
+      </select>
+    </label>
+    <label class="opt">
+      <span>主题</span>
+      <select id="themeSelect">
+        <option value="auto" selected>系统</option>
+        <option value="light">浅色</option>
+        <option value="dark">深色</option>
+        <option value="sepia">护眼</option>
+        <option value="nord">极夜</option>
       </select>
     </label>
     <label class="opt">
@@ -264,10 +341,18 @@
     </div>
   </div>
 
+  <div id="log-panel">
+    <div id="log-header">
+      <span>日志</span>
+      <span class="spacer"></span>
+      <button id="logClearBtn" class="btn btn-icon">清空</button>
+      <button id="logCloseBtn" class="btn btn-icon">×</button>
+    </div>
+    <pre id="log-body"></pre>
+  </div>
+
   <div id="editor-container">
-    <div id="lines">1</div>
-    <textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
-    <div id="measure"></div>
+    <div id="editor"></div>
   </div>
 
   <div id="toast"></div>
@@ -275,8 +360,14 @@
   <script src="standalone.min.js"></script>
   <script src="babel.js"></script>
   <script src="estree.js"></script>
+  <script src="codemirror.bundle.js"></script>
   <script>
     (function () {
+      const $ = (id) => document.getElementById(id);
+      const LOG_MAX = 200;
+      const SETTINGS_KEY = "legado.codeEditor.formatSettings";
+      const TOAST_MS = 1500;
+
       function debounce(fn, wait) {
         let t;
         return function (...args) {
@@ -285,550 +376,231 @@
         };
       }
 
-      const code = document.getElementById("code");
-      const lines = document.getElementById("lines");
-      const measure = document.getElementById("measure");
-      const toast = document.getElementById("toast");
-      
+      const dom = {
+        editorHost: $("editor"),
+        toast: $("toast"),
+        logPanel: $("log-panel"),
+        logBody: $("log-body"),
+        undoBtn: $("undoBtn"),
+        redoBtn: $("redoBtn"),
+        wrapBtn: $("wrapBtn"),
+        formatBtn: $("formatBtn"),
+        formatOptionsBtn: $("formatOptionsBtn"),
+        searchToggleBtn: $("searchToggleBtn"),
+        logToggleBtn: $("logToggleBtn"),
+        logCloseBtn: $("logCloseBtn"),
+        logClearBtn: $("logClearBtn"),
+        wrapElementsToggle: $("wrapElementsToggle"),
+        indentSizeSelect: $("indentSizeSelect"),
+        fontSizeSelect: $("fontSizeSelect"),
+        printWidthSelect: $("printWidthSelect"),
+        themeSelect: $("themeSelect"),
+        singleQuoteToggle: $("singleQuoteToggle"),
+        trailingCommaToggle: $("trailingCommaToggle"),
+        formatOptions: $("format-options"),
+        searchBox: $("search-box"),
+        searchInput: $("search-input"),
+        replaceInput: $("replace-input"),
+        findPrevBtn: $("findPrevBtn"),
+        findNextBtn: $("findNextBtn"),
+        replaceBtn: $("replaceBtn"),
+        replaceAllBtn: $("replaceAllBtn"),
+        closeSearchBtn: $("closeSearchBtn")
+      };
+
+      const CM = window.CodeMirrorBundle;
+      if (!CM || !CM.EditorView) {
+        dom.toast.textContent = "CodeMirror 未加载";
+        dom.toast.classList.add("show");
+        return;
+      }
+
+      const {
+        EditorState,
+        Compartment,
+        EditorView,
+        keymap,
+        lineNumbers,
+        highlightActiveLineGutter,
+        history,
+        historyKeymap,
+        defaultKeymap,
+        undo,
+        redo,
+        indentOnInput,
+        bracketMatching,
+        syntaxHighlighting,
+        defaultHighlightStyle,
+        javascript
+      } = CM;
+
       let isWrap = false;
       let wrapElements = true;
-      let historyStack = [];
-      let historyIndex = -1;
-      let lastValue = "";
-      let lastFormatter = "";
-      let lastPrettierError = "";
       let tabSize = 2;
+      let fontSize = "auto";
       let printWidth = 120;
       let singleQuote = false;
       let trailingComma = true;
+      let themeMode = "auto";
       let TAB = "  ";
 
-      // --- 行号逻辑（换行时显示空行占位，不增加行号） ---
-      function buildLineNumbers(text) {
-        const rawLines = (text || "").split("\n");
-        if (!isWrap || !measure) {
-          return rawLines.map((_, i) => String(i + 1));
+      let logLines = [];
+      let isLogOpen = false;
+
+      function appendLog(level, msg) {
+        const time = new Date().toISOString().replace("T", " ").replace("Z", "");
+        const text = String(msg == null ? "" : msg);
+        const line = `[${time}] ${level}: ${text.length > 1000 ? text.slice(0, 1000) + "…" : text}`;
+        logLines.push(line);
+        if (logLines.length > LOG_MAX) logLines.shift();
+        if (isLogOpen && dom.logBody) {
+          dom.logBody.textContent = logLines.join("\n");
+          dom.logBody.scrollTop = dom.logBody.scrollHeight;
         }
-
-        const style = window.getComputedStyle(code);
-        const lineHeight = parseFloat(style.lineHeight) || 20;
-        const padLeft = parseFloat(style.paddingLeft) || 0;
-        const padRight = parseFloat(style.paddingRight) || 0;
-        const width = Math.max(0, code.clientWidth - padLeft - padRight);
-
-        measure.style.fontFamily = style.fontFamily;
-        measure.style.fontSize = style.fontSize;
-        measure.style.lineHeight = style.lineHeight;
-        measure.style.width = width + "px";
-
-        const out = [];
-        for (let i = 0; i < rawLines.length; i++) {
-          const lineText = rawLines[i];
-          measure.textContent = lineText || " ";
-          const visualCount = Math.max(1, Math.round(measure.scrollHeight / lineHeight));
-          out.push(String(i + 1));
-          for (let k = 1; k < visualCount; k++) {
-            out.push("");
-          }
-        }
-        return out;
       }
 
-      const updateLines = () => {
-        const val = code.value;
-        const lineTexts = buildLineNumbers(val);
-        const lineCount = lineTexts.length;
-        if (lines.getAttribute("data-lines") != lineCount) {
-          lines.setAttribute("data-lines", lineCount);
-        }
-        lines.textContent = lineTexts.join("\n");
-        const lastNumber = String((val.match(/\n/g) || []).length + 1);
-        lines.style.width = Math.max(3, lastNumber.length + 1) + "ch";
-      };
-      const debouncedUpdateLines = debounce(updateLines, 30);
+      function loadSettings() {
+        try {
+          const raw = window.localStorage ? window.localStorage.getItem(SETTINGS_KEY) : null;
+          if (!raw) return;
+          const data = JSON.parse(raw);
+          if (data && typeof data === "object") {
+            if (typeof data.wrapElements === "boolean") wrapElements = data.wrapElements;
+            if (data.tabSize != null) tabSize = parseInt(data.tabSize, 10) || tabSize;
+            if (data.fontSize != null) fontSize = String(data.fontSize);
+            if (data.printWidth != null) printWidth = parseInt(data.printWidth, 10) || printWidth;
+            if (typeof data.singleQuote === "boolean") singleQuote = data.singleQuote;
+            if (typeof data.trailingComma === "boolean") trailingComma = data.trailingComma;
+            if (typeof data.themeMode === "string") themeMode = data.themeMode;
+          }
+        } catch (e) {}
+      }
 
-      // 滚动同步
-      let ticking = false;
-      code.addEventListener("scroll", () => {
-        if (!ticking) {
-          window.requestAnimationFrame(() => {
-            lines.scrollTop = code.scrollTop;
-            ticking = false;
-          });
-          ticking = true;
-        }
-      });
+      function saveSettings() {
+        try {
+          if (!window.localStorage) return;
+          const data = {
+            wrapElements,
+            tabSize,
+            fontSize,
+            printWidth,
+            singleQuote,
+            trailingComma,
+            themeMode
+          };
+          window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(data));
+        } catch (e) {}
+      }
 
-      code.addEventListener("input", () => {
-        saveHistory();
-        if (isWrap) {
-          debouncedUpdateLines();
+      const wrapComp = new Compartment();
+      const themeComp = new Compartment();
+      const fontComp = new Compartment();
+
+      function isDarkTheme() {
+        return themeMode === "dark" || themeMode === "nord";
+      }
+
+      function getSystemFontSize() {
+        const size = parseFloat(window.getComputedStyle(document.body).fontSize);
+        return isNaN(size) ? 13 : size;
+      }
+
+      function makeFontTheme() {
+        const px = fontSize === "auto" ? getSystemFontSize() : (parseInt(fontSize, 10) || 13);
+        return EditorView.theme({
+          ".cm-scroller": {
+            fontFamily: "inherit",
+            fontSize: px + "px",
+            lineHeight: "1.5",
+            overflow: "auto"
+          },
+          ".cm-content": { padding: "10px" },
+          ".cm-gutters": { fontSize: px + "px" }
+        });
+      }
+
+      function makeTheme() {
+        return EditorView.theme({
+          "&": {
+            height: "100%",
+            backgroundColor: "var(--bg)",
+            color: "var(--text)"
+          },
+          ".cm-gutters": {
+            backgroundColor: "var(--gutter-bg)",
+            color: "var(--gutter-text)",
+            borderRight: "1px solid var(--border)"
+          },
+          ".cm-activeLine": { backgroundColor: "var(--active-line)" },
+          ".cm-selectionBackground": { backgroundColor: "var(--selection)" }
+        }, { dark: isDarkTheme() });
+      }
+
+      function applyTheme(mode) {
+        themeMode = mode || "auto";
+        if (themeMode === "auto") {
+          document.body.removeAttribute("data-theme");
         } else {
-          updateLines();
+          document.body.setAttribute("data-theme", themeMode);
         }
+        if (view) {
+          view.dispatch({ effects: themeComp.reconfigure(makeTheme()) });
+        }
+      }
+
+      function applyTabSize(size) {
+        tabSize = size;
+        TAB = " ".repeat(tabSize);
+      }
+
+      function applyFontSize(size) {
+        fontSize = size;
+        if (view) {
+          view.dispatch({ effects: fontComp.reconfigure(makeFontTheme()) });
+        }
+      }
+
+      function insertTab(view) {
+        view.dispatch(view.state.replaceSelection(" ".repeat(tabSize)));
+        return true;
+      }
+
+      function buildExtensions() {
+        const tabKey = { key: "Tab", run: insertTab };
+        return [
+          history(),
+          keymap.of([tabKey, ...defaultKeymap, ...historyKeymap]),
+          lineNumbers(),
+          highlightActiveLineGutter(),
+          wrapComp.of(isWrap ? EditorView.lineWrapping : []),
+          javascript(),
+          indentOnInput(),
+          bracketMatching(),
+          syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+          themeComp.of(makeTheme()),
+          fontComp.of(makeFontTheme())
+        ];
+      }
+
+      loadSettings();
+
+      let view = new EditorView({
+        state: EditorState.create({ doc: "", extensions: buildExtensions() }),
+        parent: dom.editorHost
       });
 
-      // --- 历史记录 ---
-      function saveHistory() {
-        const val = code.value;
-        if (val === lastValue) return;
-        if (historyIndex < historyStack.length - 1) {
-          historyStack = historyStack.slice(0, historyIndex + 1);
-        }
-        historyStack.push(val);
-        historyIndex++;
-        if (historyStack.length > 50) {
-          historyStack.shift();
-          historyIndex--;
-        }
-        lastValue = val;
+      function getCode() {
+        return view.state.doc.toString();
       }
 
-      function undo() {
-        if (historyIndex > 0) {
-          historyIndex--;
-          code.value = historyStack[historyIndex];
-          lastValue = code.value;
-          updateLines();
-          showToast("撤销");
-        }
+      function resetDoc(text) {
+        const doc = text || "";
+        view.setState(EditorState.create({ doc, extensions: buildExtensions() }));
       }
 
-      function redo() {
-        if (historyIndex < historyStack.length - 1) {
-          historyIndex++;
-          code.value = historyStack[historyIndex];
-          lastValue = code.value;
-          updateLines();
-          showToast("重做");
-        }
-      }
-
-      saveHistory(); // 初始化
-
-      // --- 格式化核心算法 (修复版) ---
-      
-      // 1. 严格 JSON 格式化 (最优先)
-      function tryFormatJSON(text, compact) {
-        try {
-          return JSON.stringify(JSON.parse(text), null, compact ? 0 : TAB);
-        } catch (e) {
-          return null;
-        }
-      }
-
-      // 2. 宽松 JS/JSON 格式化（两阶段：规范换行 + 缩进）
-      function normalizeJs(text) {
-        let out = "";
-        let inString = false;
-        let stringChar = "";
-        let escape = false;
-        let inLineComment = false;
-        let inBlockComment = false;
-        let parenDepth = 0;
-        let braceDepth = 0;
-        let ternaryDepth = 0;
-        let inRegex = false;
-        let inCharClass = false;
-        let regexEscape = false;
-        let lastNonSpace = "";
-
-        for (let i = 0; i < text.length; i++) {
-          const ch = text[i];
-          const next = text[i + 1];
-
-          if (inLineComment) {
-            out += ch;
-            if (ch === "\n") inLineComment = false;
-            continue;
-          }
-          if (inBlockComment) {
-            out += ch;
-            if (ch === "*" && next === "/") {
-              out += next;
-              i++;
-              inBlockComment = false;
-            }
-            continue;
-          }
-
-          if (inRegex) {
-            out += ch;
-            if (regexEscape) {
-              regexEscape = false;
-              continue;
-            }
-            if (ch === "\\") {
-              regexEscape = true;
-              continue;
-            }
-            if (ch === "[" && !inCharClass) {
-              inCharClass = true;
-              continue;
-            }
-            if (ch === "]" && inCharClass) {
-              inCharClass = false;
-              continue;
-            }
-            if (ch === "/" && !inCharClass) {
-              inRegex = false;
-            }
-            continue;
-          }
-
-          if (inString) {
-            out += ch;
-            if (escape) {
-              escape = false;
-            } else if (ch === "\\") {
-              escape = true;
-            } else if (ch === stringChar) {
-              inString = false;
-              stringChar = "";
-            }
-            continue;
-          }
-
-          if (ch === "/" && next === "/") {
-            out += ch + next;
-            i++;
-            inLineComment = true;
-            continue;
-          }
-          if (ch === "/" && next === "*") {
-            out += ch + next;
-            i++;
-            inBlockComment = true;
-            continue;
-          }
-          if (ch === "/" && next !== "/" && next !== "*") {
-            const regexStart = !lastNonSpace || /[=({\[;,?:!&|+\-*%^~<>]/.test(lastNonSpace);
-            if (regexStart) {
-              inRegex = true;
-              out += ch;
-              continue;
-            }
-          }
-
-          if (ch === '"' || ch === "'" || ch === "`") {
-            inString = true;
-            stringChar = ch;
-            out += ch;
-            continue;
-          }
-
-          if (ch === "(") {
-            parenDepth++;
-            out += ch;
-            continue;
-          }
-          if (ch === ")") {
-            parenDepth = Math.max(parenDepth - 1, 0);
-            out += ch;
-            continue;
-          }
-
-          if (ch === "{") {
-            braceDepth++;
-            out += wrapElements ? "{\n" : "{ ";
-            if (!/\s/.test(ch)) lastNonSpace = ch;
-            continue;
-          }
-          if (ch === "}") {
-            braceDepth = Math.max(braceDepth - 1, 0);
-            out += wrapElements ? "\n}\n" : " }\n";
-            if (!/\s/.test(ch)) lastNonSpace = ch;
-            continue;
-          }
-          if (ch === "?" && next === "?") {
-            const next2 = text[i + 2] || "";
-            if (next2 === "=") {
-              out += "??=";
-              i += 2;
-            } else {
-              out += "??";
-              i += 1;
-            }
-            lastNonSpace = "?";
-            continue;
-          }
-          if (ch === "?" && next === ".") {
-            out += "?.";
-            i += 1;
-            lastNonSpace = ".";
-            continue;
-          }
-          if (ch === "?" && next !== "?" && parenDepth === 0) {
-            ternaryDepth += 1;
-            out += "\n? ";
-            if (!/\s/.test(ch)) lastNonSpace = ch;
-            continue;
-          }
-          if (ch === ":" && ternaryDepth > 0 && parenDepth === 0 && braceDepth === 0) {
-            ternaryDepth -= 1;
-            out += "\n: ";
-            if (!/\s/.test(ch)) lastNonSpace = ch;
-            continue;
-          }
-          if (ch === ";" && parenDepth === 0) {
-            out += ";\n";
-            if (!/\s/.test(ch)) lastNonSpace = ch;
-            continue;
-          }
-          if (ch === "," && parenDepth === 0) {
-            out += wrapElements ? ",\n" : ", ";
-            if (!/\s/.test(ch)) lastNonSpace = ch;
-            continue;
-          }
-          if (ch === "\r") continue;
-
-          out += ch;
-          if (!/\s/.test(ch)) lastNonSpace = ch;
-        }
-        return out.replace(/\n{2,}/g, "\n");
-      }
-
-      function countBraceDelta(line) {
-        let open = 0;
-        let close = 0;
-        let inString = false;
-        let stringChar = "";
-        let escape = false;
-
-        for (let i = 0; i < line.length; i++) {
-          const ch = line[i];
-          const next = line[i + 1];
-
-          if (!inString && ch === "/" && next === "/") {
-            break;
-          }
-          if (!inString && ch === "/" && next === "*") {
-            const end = line.indexOf("*/", i + 2);
-            if (end === -1) break;
-            i = end + 1;
-            continue;
-          }
-
-          if (inString) {
-            if (escape) {
-              escape = false;
-            } else if (ch === "\\") {
-              escape = true;
-            } else if (ch === stringChar) {
-              inString = false;
-              stringChar = "";
-            }
-            continue;
-          }
-
-          if (ch === '"' || ch === "'" || ch === "`") {
-            inString = true;
-            stringChar = ch;
-            continue;
-          }
-
-          if (ch === "{" || ch === "[") open++;
-          if (ch === "}" || ch === "]") close++;
-        }
-        return open - close;
-      }
-
-      function indentJsLines(text) {
-        const lines = text.split("\n");
-        const out = [];
-        let indent = 0;
-        let prevTrimmed = "";
-
-        lines.forEach(function (line) {
-          let trimmed = line.trim();
-          if (!trimmed) return;
-
-          trimmed = normalizeKeywordLine(trimmed);
-          const startsWithClose = /^[}\]]/.test(trimmed);
-          if (startsWithClose) indent = Math.max(indent - 1, 0);
-
-          const prevIsCase = /^(case\b|default\b)/.test(prevTrimmed);
-          const prevContinuation =
-            !prevIsCase &&
-            (/[=,+\-*/%&|^?:]$/.test(prevTrimmed) || /[({[]$/.test(prevTrimmed));
-
-          let lineIndent = indent + (prevContinuation ? 1 : 0);
-          if (/^[?:]/.test(trimmed)) {
-            lineIndent = indent + 1;
-          }
-          const canMerge =
-            /^(else\b|catch\b|finally\b)/.test(trimmed) &&
-            out.length > 0 &&
-            out[out.length - 1].trim().endsWith("}");
-          if (canMerge) {
-            out[out.length - 1] = out[out.length - 1] + " " + trimmed;
-          } else {
-            out.push(TAB.repeat(lineIndent) + trimmed);
-          }
-
-          let delta = countBraceDelta(trimmed);
-          if (startsWithClose) delta += 1;
-          indent += delta;
-          if (indent < 0) indent = 0;
-
-          if (/^(case\b|default\b)/.test(trimmed) && /:\s*$/.test(trimmed)) {
-            indent += 1;
-          }
-          prevTrimmed = trimmed;
-        });
-
-        return out.join("\n");
-      }
-
-      function formatLooseJS(text) {
-        const normalized = normalizeJs(text);
-        return indentJsLines(normalized);
-      }
-
-      async function formatWithPrettier(codeText, parser) {
-        if (!window.prettier || !window.prettierPlugins) {
-          lastPrettierError = "Prettier 未加载";
-          return null;
-        }
-        const plugins = [];
-        if (window.prettierPlugins.babel) plugins.push(window.prettierPlugins.babel);
-        if (window.prettierPlugins.estree) plugins.push(window.prettierPlugins.estree);
-        if (!plugins.length) {
-          lastPrettierError = "Prettier 插件未加载";
-          return null;
-        }
-        try {
-          const width = wrapElements ? printWidth : Math.max(printWidth, 99999);
-          return await window.prettier.format(codeText, {
-            parser: parser || "babel",
-            plugins: plugins,
-            tabWidth: tabSize,
-            useTabs: false,
-            singleQuote: singleQuote,
-            trailingComma: trailingComma ? "es5" : "none",
-            printWidth: width
-          });
-        } catch (e) {
-          lastPrettierError = e && e.message ? e.message : "Prettier 解析失败";
-          console.error("Prettier error:", e);
-          return null;
-        }
-      }
-
-      async function formatJsBlock(codeText) {
-        const pretty = await formatWithPrettier(codeText, "babel");
-        if (pretty) {
-          lastFormatter = "prettier";
-          return pretty;
-        }
-        lastFormatter = "loose";
-        return formatLooseJS(codeText);
-      }
-
-      function looksLikeHtml(text) {
-        const trimmed = (text || "").trim();
-        if (!trimmed) return false;
-        if (!/^</.test(trimmed)) return false;
-        return /^<(?:!doctype|html|head|body|div|span|p|section|article|script|style)\b/i.test(trimmed) ||
-          (/^<[^>]+>/.test(trimmed) && /<\/[^>]+>/.test(trimmed));
-      }
-
-      async function formatCode() {
-        const raw = code.value || "";
-        const text = raw.trim();
-        if (!text) return;
-        lastFormatter = "";
-        lastPrettierError = "";
-        showToast("格式化中...");
-        await new Promise(requestAnimationFrame);
-
-        try {
-          const wrapper = detectWrapper(raw);
-          if (wrapper) {
-            const bodyText = (wrapper.body || "").trim();
-            const formattedBody = bodyText ? await formatJsBlock(bodyText) : "";
-            let wrapped = "";
-            if (wrapper.type === "prefix") {
-              wrapped = wrapper.prefix + (formattedBody ? "\n" + formattedBody : "");
-            } else if (wrapper.type === "tag") {
-              wrapped = wrapper.open + (formattedBody ? "\n" + formattedBody + "\n" : "") + wrapper.close;
-            } else if (wrapper.type === "moustache") {
-              wrapped = "{{" + (formattedBody ? "\n" + formattedBody + "\n" : "") + "}}";
-            } else {
-              wrapped = formattedBody;
-            }
-            code.value = wrapped;
-            updateLines();
-            saveHistory();
-            const modeLabel = lastFormatter === "prettier" ? "Prettier" : "宽松";
-            showToast("格式化完成（" + modeLabel + "）");
-            return;
-          }
-
-          // 1. 尝试标准 JSON
-          let formatted = tryFormatJSON(text, !wrapElements);
-          if (!formatted) {
-            const prettyJson = await formatWithPrettier(text, "json");
-            if (prettyJson) {
-              formatted = prettyJson.trimEnd();
-              lastFormatter = "prettier";
-            }
-          }
-
-          if (!formatted) {
-            if (looksLikeHtml(text)) {
-              // 2. 简单的 HTML 缩进
-              formatted = formatHtml(text);
-            } else {
-              // 3. JS / 其他脚本
-              formatted = await formatJsBlock(text);
-            }
-          }
-
-          if (formatted) {
-              code.value = formatted;
-              updateLines();
-              saveHistory();
-            const modeLabel = lastFormatter === "prettier" ? "Prettier" : "宽松";
-            if (lastFormatter === "loose" && lastPrettierError) {
-              const err = String(lastPrettierError || "").trim();
-              const shortErr = err.length > 80 ? err.slice(0, 80) + "…" : err;
-              showToast("格式化完成（宽松，Prettier失败：" + shortErr + "）");
-            } else {
-              showToast("格式化完成（" + modeLabel + "）");
-            }
-          } else {
-              showToast("格式化失败");
-          }
-        } catch (e) {
-          console.error(e);
-          showToast("格式化失败");
-        }
-      }
-
-      function formatHtml(html) {
-        let tab = TAB;
-        let result = '';
-        let indent= '';
-        html.split(/>\s*</).forEach(function(element) {
-          if (element.match( /^\/\w/ )) {
-            indent = indent.substring(tab.length);
-          }
-          result += indent + '<' + element + '>\r\n';
-          // 排除 void tags (不需要闭合的标签)
-          if (element.match( /^<?\w[^>]*[^\/]$/ ) && !/^br|^img|^hr|^input|^meta|^link/i.test(element) ) { 
-            indent += tab;              
-          }
-        });
-        return result.substring(1, result.length-3);
-      }
-
-      function normalizeKeywordLine(line) {
-        return line
-          .replace(/^else\s*if\s*\(/, "else if (")
-          .replace(/^else\s*\{/, "else {")
-          .replace(/^catch\s*\(/, "catch (")
-          .replace(/^finally\s*\{/, "finally {");
+      function setSelectionRange(start, end) {
+        view.dispatch({ selection: { anchor: start, head: end }, scrollIntoView: true });
+        view.focus();
       }
 
       function detectWrapper(rawText) {
@@ -849,60 +621,121 @@
         return null;
       }
 
-      // --- 事件绑定 ---
-      document.getElementById("undoBtn").onclick = undo;
-      document.getElementById("redoBtn").onclick = redo;
-      document.getElementById("formatBtn").onclick = formatCode;
-      
-      const wrapBtn = document.getElementById("wrapBtn");
+      async function formatWithPrettier(codeText, parser) {
+        if (!window.prettier || !window.prettierPlugins) {
+          throw new Error("Prettier 未加载");
+        }
+        const plugins = [];
+        if (window.prettierPlugins.babel) plugins.push(window.prettierPlugins.babel);
+        if (window.prettierPlugins.estree) plugins.push(window.prettierPlugins.estree);
+        if (!plugins.length) {
+          throw new Error("Prettier 插件未加载");
+        }
+        const width = wrapElements ? printWidth : Math.max(printWidth, 99999);
+        return window.prettier.format(codeText, {
+          parser: parser || "babel",
+          plugins: plugins,
+          tabWidth: tabSize,
+          useTabs: false,
+          singleQuote: singleQuote,
+          trailingComma: trailingComma ? "es5" : "none",
+          printWidth: width
+        });
+      }
+
+      async function formatCode() {
+        const raw = getCode();
+        const text = raw.trim();
+        if (!text) return;
+        showToast("格式化中...");
+        await new Promise(requestAnimationFrame);
+        try {
+          const wrapper = detectWrapper(raw);
+          let formattedBody = await formatWithPrettier(wrapper ? wrapper.body : text, "babel");
+          if (wrapper) {
+            if (wrapper.type === "prefix") {
+              formattedBody = wrapper.prefix + "\n" + formattedBody;
+            } else if (wrapper.type === "tag") {
+              formattedBody = wrapper.open + "\n" + formattedBody + "\n" + wrapper.close;
+            } else if (wrapper.type === "moustache") {
+              formattedBody = "{{\n" + formattedBody + "\n}}";
+            }
+          }
+          resetDoc(formattedBody);
+          showToast("格式化完成（Prettier）");
+        } catch (e) {
+          appendLog("error", e && e.message ? e.message : e);
+          showToast("格式化失败");
+        }
+      }
+
+      dom.undoBtn.onclick = () => undo(view);
+      dom.redoBtn.onclick = () => redo(view);
+      dom.formatBtn.onclick = formatCode;
+
+      const wrapBtn = dom.wrapBtn;
       wrapBtn.onclick = () => {
         isWrap = !isWrap;
-        code.style.whiteSpace = isWrap ? "pre-wrap" : "pre";
+        view.dispatch({ effects: wrapComp.reconfigure(isWrap ? EditorView.lineWrapping : []) });
         wrapBtn.classList.toggle("active", isWrap);
-        updateLines();
         showToast("自动换行: " + (isWrap ? "开" : "关"));
       };
-
-      const formatOptionsBtn = document.getElementById("formatOptionsBtn");
-      const formatOptions = document.getElementById("format-options");
-      const wrapElementsToggle = document.getElementById("wrapElementsToggle");
-      const indentSizeSelect = document.getElementById("indentSizeSelect");
-      const printWidthSelect = document.getElementById("printWidthSelect");
-      const singleQuoteToggle = document.getElementById("singleQuoteToggle");
-      const trailingCommaToggle = document.getElementById("trailingCommaToggle");
-
-      function applyTabSize(size) {
-        tabSize = size;
-        TAB = " ".repeat(tabSize);
-        code.style.tabSize = String(tabSize);
-      }
+      const formatOptionsBtn = dom.formatOptionsBtn;
+      const formatOptions = dom.formatOptions;
+      const wrapElementsToggle = dom.wrapElementsToggle;
+      const indentSizeSelect = dom.indentSizeSelect;
+      const fontSizeSelect = dom.fontSizeSelect;
+      const printWidthSelect = dom.printWidthSelect;
+      const themeSelect = dom.themeSelect;
+      const singleQuoteToggle = dom.singleQuoteToggle;
+      const trailingCommaToggle = dom.trailingCommaToggle;
 
       wrapElementsToggle.checked = wrapElements;
       indentSizeSelect.value = String(tabSize);
+      fontSizeSelect.value = String(fontSize);
       printWidthSelect.value = String(printWidth);
+      themeSelect.value = String(themeMode);
       singleQuoteToggle.checked = singleQuote;
       trailingCommaToggle.checked = trailingComma;
+
       applyTabSize(tabSize);
+      applyFontSize(fontSize);
+      applyTheme(themeMode);
 
       wrapElementsToggle.addEventListener("change", () => {
         wrapElements = wrapElementsToggle.checked;
         showToast("元素换行: " + (wrapElements ? "开" : "关"));
+        saveSettings();
       });
       indentSizeSelect.addEventListener("change", () => {
         applyTabSize(parseInt(indentSizeSelect.value, 10) || 2);
         showToast("缩进: " + tabSize);
+        saveSettings();
+      });
+      fontSizeSelect.addEventListener("change", () => {
+        applyFontSize(fontSizeSelect.value || "auto");
+        showToast("字号: " + (fontSize === "auto" ? "自动" : fontSize));
+        saveSettings();
       });
       printWidthSelect.addEventListener("change", () => {
         printWidth = parseInt(printWidthSelect.value, 10) || 120;
         showToast("宽度: " + printWidth);
+        saveSettings();
+      });
+      themeSelect.addEventListener("change", () => {
+        applyTheme(themeSelect.value || "auto");
+        showToast("主题: " + (themeMode === "auto" ? "系统" : themeMode));
+        saveSettings();
       });
       singleQuoteToggle.addEventListener("change", () => {
         singleQuote = singleQuoteToggle.checked;
         showToast("单引号: " + (singleQuote ? "开" : "关"));
+        saveSettings();
       });
       trailingCommaToggle.addEventListener("change", () => {
         trailingComma = trailingCommaToggle.checked;
         showToast("末尾逗号: " + (trailingComma ? "开" : "关"));
+        saveSettings();
       });
 
       formatOptionsBtn.onclick = (e) => {
@@ -915,17 +748,16 @@
         formatOptions.classList.remove("show");
       });
 
-      // 搜索功能
-      const searchBox = document.getElementById("search-box");
-      const searchInput = document.getElementById("search-input");
-      const replaceInput = document.getElementById("replace-input");
-      const findPrevBtn = document.getElementById("findPrevBtn");
-      const findNextBtn = document.getElementById("findNextBtn");
-      const replaceBtn = document.getElementById("replaceBtn");
-      const replaceAllBtn = document.getElementById("replaceAllBtn");
-      const closeSearchBtn = document.getElementById("closeSearchBtn");
+      const searchBox = dom.searchBox;
+      const searchInput = dom.searchInput;
+      const replaceInput = dom.replaceInput;
+      const findPrevBtn = dom.findPrevBtn;
+      const findNextBtn = dom.findNextBtn;
+      const replaceBtn = dom.replaceBtn;
+      const replaceAllBtn = dom.replaceAllBtn;
+      const closeSearchBtn = dom.closeSearchBtn;
 
-      document.getElementById("searchToggleBtn").onclick = () => {
+      dom.searchToggleBtn.onclick = () => {
         searchBox.classList.add("visible");
         searchInput.focus();
       };
@@ -934,23 +766,20 @@
       function doSearch(dir) {
         const query = searchInput.value;
         if (!query) return;
-        const text = code.value;
+        const text = getCode();
         let index = -1;
+        const sel = view.state.selection.main;
         if (dir === 1) {
-          const startPos = code.selectionEnd;
+          const startPos = sel.to;
           index = text.indexOf(query, startPos);
           if (index === -1) index = text.indexOf(query, 0);
         } else {
-          const startPos = Math.max(0, code.selectionStart - 1);
+          const startPos = Math.max(0, sel.from - 1);
           index = text.lastIndexOf(query, startPos);
           if (index === -1) index = text.lastIndexOf(query);
         }
         if (index !== -1) {
-          code.setSelectionRange(index, index + query.length);
-          code.focus();
-          const lineHeight = 20;
-          const linesBefore = text.substring(0, index).split("\n").length;
-          code.scrollTop = (linesBefore * lineHeight) - (code.clientHeight / 2);
+          setSelectionRange(index, index + query.length);
         } else {
           showToast("未找到内容");
         }
@@ -961,19 +790,17 @@
         if (!query) return;
         const replacement = replaceInput.value || "";
         if (all) {
-          if (code.value.includes(query)) {
-            code.value = code.value.split(query).join(replacement);
-            updateLines();
-            saveHistory();
+          const text = getCode();
+          if (text.includes(query)) {
+            resetDoc(text.split(query).join(replacement));
             showToast("全部替换完成");
           }
           return;
         }
-        const start = code.selectionStart;
-        const end = code.selectionEnd;
-        const selected = code.value.substring(start, end);
+        const sel = view.state.selection.main;
+        const selected = view.state.doc.sliceString(sel.from, sel.to);
         if (selected === query) {
-          insertText(replacement);
+          view.dispatch({ changes: { from: sel.from, to: sel.to, insert: replacement } });
           doSearch(1);
         } else {
           doSearch(1);
@@ -985,133 +812,87 @@
       replaceBtn.onclick = () => doReplace(false);
       replaceAllBtn.onclick = () => doReplace(true);
 
-      function insertText(text) {
-        const start = code.selectionStart;
-        const end = code.selectionEnd;
-        code.setRangeText(text, start, end, "end");
-        code.dispatchEvent(new Event('input'));
-      }
-
-      // 快捷键增强
-      code.addEventListener("keydown", function (e) {
-        if (e.isComposing) return;
-        const pairMap = {
-          "(": ")",
-          "[": "]",
-          "{": "}",
-          "'": "'",
-          "\"": "\"",
-          "`": "`"
-        };
-        const closeMap = {
-          ")": "(",
-          "]": "[",
-          "}": "{",
-          "'": "'",
-          "\"": "\"",
-          "`": "`"
-        };
-
-        if (!e.ctrlKey && !e.metaKey && !e.altKey && pairMap[e.key]) {
-          e.preventDefault();
-          const start = code.selectionStart;
-          const end = code.selectionEnd;
-          const selected = code.value.substring(start, end);
-          const close = pairMap[e.key];
-          const insert = e.key + selected + close;
-          code.setRangeText(insert, start, end, "end");
-          if (selected) {
-            code.setSelectionRange(start + 1, start + 1 + selected.length);
-          } else {
-            const pos = start + 1;
-            code.setSelectionRange(pos, pos);
-          }
-          code.dispatchEvent(new Event("input"));
-          return;
+      const logToggleBtn = dom.logToggleBtn;
+      const logCloseBtn = dom.logCloseBtn;
+      const logClearBtn = dom.logClearBtn;
+      logToggleBtn.onclick = () => {
+        dom.logPanel.classList.toggle("show");
+        isLogOpen = dom.logPanel.classList.contains("show");
+        if (isLogOpen && dom.logBody) {
+          dom.logBody.textContent = logLines.join("\n");
+          dom.logBody.scrollTop = dom.logBody.scrollHeight;
         }
+      };
+      logCloseBtn.onclick = () => {
+        dom.logPanel.classList.remove("show");
+        isLogOpen = false;
+      };
+      logClearBtn.onclick = () => {
+        logLines = [];
+        if (isLogOpen && dom.logBody) dom.logBody.textContent = "";
+      };
 
-        if (!e.ctrlKey && !e.metaKey && !e.altKey && closeMap[e.key]) {
-          const start = code.selectionStart;
-          const end = code.selectionEnd;
-          if (start === end) {
-            const next = code.value[start];
-            if (next === e.key) {
-              e.preventDefault();
-              code.setSelectionRange(start + 1, start + 1);
-              return;
-            }
-          }
-        }
-
-        if (e.key === "Backspace") {
-          const start = code.selectionStart;
-          const end = code.selectionEnd;
-          if (start === end && start > 0) {
-            const prev = code.value[start - 1];
-            const next = code.value[start];
-            if (pairMap[prev] && pairMap[prev] === next) {
-              e.preventDefault();
-              code.setRangeText("", start - 1, start + 1, "start");
-              code.dispatchEvent(new Event("input"));
-              return;
-            }
-          }
-        }
-        if (e.key === "Tab") {
-          e.preventDefault();
-          insertText(TAB);
-        }
-        if (e.key === "Enter") {
-          e.preventDefault();
-          const cursor = code.selectionStart;
-          const currentLineStart = code.value.lastIndexOf("\n", cursor - 1) + 1;
-          const currentLine = code.value.substring(currentLineStart, cursor);
-          const indent = (currentLine.match(/^\s*/) || [""])[0];
-          const extraIndent = /[{[]\s*$/.test(currentLine) ? TAB : "";
-          const nextChar = code.value[cursor] || "";
-          if (extraIndent && (nextChar === "}" || nextChar === "]")) {
-            const insert = "\n" + indent + extraIndent + "\n" + indent;
-            code.setRangeText(insert, cursor, cursor, "end");
-            const pos = cursor + 1 + indent.length + extraIndent.length;
-            code.setSelectionRange(pos, pos);
-            code.dispatchEvent(new Event("input"));
-            return;
-          }
-          insertText("\n" + indent + extraIndent);
-        }
-      });
-
+      let toastTimer = null;
       function showToast(msg) {
-        toast.textContent = msg;
-        toast.classList.add("show");
-        setTimeout(() => toast.classList.remove("show"), 1500);
+        dom.toast.textContent = msg;
+        dom.toast.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => dom.toast.classList.remove("show"), TOAST_MS);
       }
 
-      // --- Android Interface ---
       function b64ToUtf8(b64) {
         try { return decodeURIComponent(escape(window.atob(b64))); } catch (e) { return ""; }
       }
 
       window.setCodeFromAndroid = function (b64) {
-        code.value = b64ToUtf8(b64);
-        updateLines();
-        saveHistory();
-        code.scrollTop = 0;
-        lines.scrollTop = 0;
+        resetDoc(b64ToUtf8(b64));
       };
 
       window.__save = function () {
-        const val = code.value || "";
+        const val = getCode();
         if (window.Android && window.Android.save) window.Android.save(val);
         else console.log("Mock Save:", val);
       };
 
       window.__getCode = function () {
-        return code.value || "";
+        return getCode();
       };
-      
-      window.addEventListener("resize", debouncedUpdateLines);
-      updateLines();
+
+      if (window.visualViewport) {
+        const syncViewport = () => {
+          const h = window.visualViewport.height;
+          document.documentElement.style.height = h + "px";
+          document.body.style.height = h + "px";
+          if (fontSize === "auto") applyFontSize("auto");
+        };
+        const vvSync = debounce(syncViewport, 50);
+        window.visualViewport.addEventListener("resize", vvSync);
+        window.visualViewport.addEventListener("scroll", vvSync);
+        syncViewport();
+      }
+
+      window.addEventListener("resize", () => {
+        if (fontSize === "auto") applyFontSize("auto");
+      });
+      window.addEventListener("error", (e) => {
+        const msg = e && e.message ? e.message : "发生未知错误";
+        appendLog("error", msg);
+        showToast("发生错误：" + msg);
+      });
+      window.addEventListener("unhandledrejection", (e) => {
+        const reason = e && e.reason ? e.reason : "发生未知错误";
+        appendLog("promise", reason);
+        showToast("发生错误：" + reason);
+      });
+      const __err = console.error.bind(console);
+      console.error = function (...args) {
+        const safe = args.map(a => {
+          if (typeof a === "string") return a;
+          try { return JSON.stringify(a); } catch (e) { return String(a); }
+        }).join(" ");
+        appendLog("error", safe);
+        __err(...args);
+      };
     })();
   </script>
 </body>
