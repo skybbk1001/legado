@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
@@ -76,8 +77,18 @@
       color-scheme: dark;
     }
 
-    * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+    }
+
     body {
       font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
       background: var(--bg);
@@ -99,7 +110,10 @@
       -webkit-overflow-scrolling: touch;
       flex-shrink: 0;
     }
-    #toolbar::-webkit-scrollbar { display: none; }
+
+    #toolbar::-webkit-scrollbar {
+      display: none;
+    }
 
     .btn {
       border: 1px solid var(--border);
@@ -112,12 +126,17 @@
       user-select: none;
       flex-shrink: 0;
     }
-    .btn:active { opacity: 0.7; }
+
+    .btn:active {
+      opacity: 0.7;
+    }
+
     .btn.active {
       border-color: var(--accent);
       color: var(--accent);
       background: var(--active-line);
     }
+
     .btn.btn-icon {
       padding: 6px 8px;
       min-width: 28px;
@@ -135,9 +154,11 @@
       flex: 1;
       min-height: 0;
     }
+
     .cm-editor {
       height: 100%;
     }
+
     .cm-panels.cm-panels-top {
       border-bottom: 1px solid var(--border);
       background: var(--toolbar-bg);
@@ -150,13 +171,17 @@
       background: var(--bg);
       border: 1px solid var(--border);
       border-radius: 6px;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
       padding: 8px 10px;
       display: none;
       z-index: 30;
       font-size: 13px;
     }
-    #format-options.show { display: block; }
+
+    #format-options.show {
+      display: block;
+    }
+
     #format-options .opt {
       display: flex;
       align-items: center;
@@ -166,11 +191,13 @@
       user-select: none;
       white-space: nowrap;
     }
+
     #format-options input[type="checkbox"] {
       width: 14px;
       height: 14px;
       margin: 0;
     }
+
     #format-options select {
       background: var(--bg);
       color: var(--text);
@@ -185,7 +212,7 @@
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(0,0,0,0.8);
+      background: rgba(0, 0, 0, 0.8);
       color: #fff;
       padding: 8px 16px;
       border-radius: 20px;
@@ -195,7 +222,10 @@
       transition: opacity 0.3s;
       z-index: 20;
     }
-    #toast.show { opacity: 1; }
+
+    #toast.show {
+      opacity: 1;
+    }
 
     #log-panel {
       position: absolute;
@@ -208,11 +238,15 @@
       background: var(--bg);
       border: 1px solid var(--border);
       border-radius: 8px;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
       z-index: 40;
       overflow: hidden;
     }
-    #log-panel.show { display: flex; }
+
+    #log-panel.show {
+      display: flex;
+    }
+
     #log-header {
       display: flex;
       align-items: center;
@@ -222,7 +256,11 @@
       background: var(--toolbar-bg);
       font-size: 12px;
     }
-    #log-header .spacer { flex: 1; }
+
+    #log-header .spacer {
+      flex: 1;
+    }
+
     #log-body {
       margin: 0;
       padding: 8px;
@@ -235,6 +273,7 @@
     }
   </style>
 </head>
+
 <body>
   <div id="toolbar">
     <button id="undoBtn" class="btn">撤销</button>
@@ -359,7 +398,8 @@
   <script src="standalone.min.js"></script>
   <script src="babel.js"></script>
   <script src="estree.js"></script>
-  <script src="codemirror.bundle.js" onerror="window.__LEGADO_BOOT_ERROR && window.__LEGADO_BOOT_ERROR('codemirror.bundle.js 加载失败')"></script>
+  <script src="codemirror.bundle.js"
+    onerror="window.__LEGADO_BOOT_ERROR && window.__LEGADO_BOOT_ERROR('codemirror.bundle.js 加载失败')"></script>
   <script>
     // 早期兜底：如果主脚本未执行，显示提示
     window.setTimeout(function () {
@@ -373,873 +413,876 @@
     (function () {
       try {
         const $ = (id) => document.getElementById(id);
-        const bootError = window.__LEGADO_BOOT_ERROR || function () {};
+        const bootError = window.__LEGADO_BOOT_ERROR || function () { };
         const LOG_MAX = 200;
         const SETTINGS_KEY = "legado.codeEditor.formatSettings";
         const TOAST_MS = 1500;
 
-      function debounce(fn, wait) {
-        let t;
-        return function (...args) {
-          clearTimeout(t);
-          t = setTimeout(() => fn.apply(this, args), wait);
-        };
-      }
-
-      const dom = {
-        editorHost: $("editor"),
-        toast: $("toast"),
-        logPanel: $("log-panel"),
-        logBody: $("log-body"),
-        undoBtn: $("undoBtn"),
-        redoBtn: $("redoBtn"),
-        wrapBtn: $("wrapBtn"),
-        formatBtn: $("formatBtn"),
-        formatOptionsBtn: $("formatOptionsBtn"),
-        searchToggleBtn: $("searchToggleBtn"),
-        logToggleBtn: $("logToggleBtn"),
-        logCloseBtn: $("logCloseBtn"),
-        logClearBtn: $("logClearBtn"),
-        wrapElementsToggle: $("wrapElementsToggle"),
-        indentSizeSelect: $("indentSizeSelect"),
-        fontSizeSelect: $("fontSizeSelect"),
-        printWidthSelect: $("printWidthSelect"),
-        themeSelect: $("themeSelect"),
-        singleQuoteToggle: $("singleQuoteToggle"),
-        trailingCommaToggle: $("trailingCommaToggle"),
-        formatOptions: $("format-options")
-      };
-
-      const CM = window.CodeMirrorBundle;
-      if (!CM || !CM.EditorView) {
-        bootError("CodeMirror 未加载，请确认 codemirror.bundle.js 已打包并可访问");
-        return;
-      }
-
-      const {
-        EditorState,
-        Compartment,
-        EditorView,
-        keymap,
-        lineNumbers,
-        highlightActiveLineGutter,
-        history,
-        undo,
-        redo,
-        indentOnInput,
-        bracketMatching,
-        syntaxHighlighting,
-        defaultHighlightStyle,
-        indentUnit,
-        foldGutter,
-        highlightSelectionMatches,
-        openSearchPanel,
-        autocompletion,
-        closeBrackets,
-        closeBracketsKeymap,
-        javascript,
-        indentMore,
-        indentLess,
-        insertNewlineAndIndent
-      } = CM;
-
-      let isWrap = false;
-      let wrapElements = true;
-      let tabSize = 2;
-      let fontSize = "auto";
-      let printWidth = 120;
-      let singleQuote = false;
-      let trailingComma = true;
-      let themeMode = "auto";
-
-      let logLines = [];
-      let isLogOpen = false;
-
-      function appendLog(level, msg) {
-        const time = new Date().toISOString().replace("T", " ").replace("Z", "");
-        const text = String(msg == null ? "" : msg);
-        const line = `[${time}] ${level}: ${text.length > 1000 ? text.slice(0, 1000) + "…" : text}`;
-        logLines.push(line);
-        if (logLines.length > LOG_MAX) logLines.shift();
-        if (isLogOpen && dom.logBody) {
-          dom.logBody.textContent = logLines.join("\n");
-          dom.logBody.scrollTop = dom.logBody.scrollHeight;
-        }
-      }
-
-      function loadSettings() {
-        try {
-          const raw = window.localStorage ? window.localStorage.getItem(SETTINGS_KEY) : null;
-          if (!raw) return;
-          const data = JSON.parse(raw);
-          if (data && typeof data === "object") {
-            if (typeof data.wrapElements === "boolean") wrapElements = data.wrapElements;
-            if (data.tabSize != null) tabSize = parseInt(data.tabSize, 10) || tabSize;
-            if (data.fontSize != null) fontSize = String(data.fontSize);
-            if (data.printWidth != null) printWidth = parseInt(data.printWidth, 10) || printWidth;
-            if (typeof data.singleQuote === "boolean") singleQuote = data.singleQuote;
-            if (typeof data.trailingComma === "boolean") trailingComma = data.trailingComma;
-            if (typeof data.themeMode === "string") themeMode = data.themeMode;
-          }
-        } catch (e) {}
-      }
-
-      function saveSettings() {
-        try {
-          if (!window.localStorage) return;
-          const data = {
-            wrapElements,
-            tabSize,
-            fontSize,
-            printWidth,
-            singleQuote,
-            trailingComma,
-            themeMode
+        function debounce(fn, wait) {
+          let t;
+          return function (...args) {
+            clearTimeout(t);
+            t = setTimeout(() => fn.apply(this, args), wait);
           };
-          window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(data));
-        } catch (e) {}
-      }
-
-      const wrapComp = new Compartment();
-      const themeComp = new Compartment();
-      const fontComp = new Compartment();
-      const indentComp = new Compartment();
-      const mediaDark = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
-
-      function isDarkTheme() {
-        if (themeMode === "auto") return !!(mediaDark && mediaDark.matches);
-        return themeMode === "dark" || themeMode === "nord";
-      }
-
-      function getSystemFontSize() {
-        const size = parseFloat(window.getComputedStyle(document.body).fontSize);
-        return isNaN(size) ? 13 : size;
-      }
-
-      function makeFontTheme() {
-        const px = fontSize === "auto" ? getSystemFontSize() : (parseInt(fontSize, 10) || 13);
-        return EditorView.theme({
-          ".cm-scroller": {
-            fontFamily: "inherit",
-            fontSize: px + "px",
-            lineHeight: "1.5",
-            overflow: "auto"
-          },
-          ".cm-content": { padding: "10px" },
-          ".cm-gutters": { fontSize: px + "px" }
-        });
-      }
-
-      function makeTheme() {
-        return EditorView.theme({
-          "&": {
-            height: "100%",
-            backgroundColor: "var(--bg)",
-            color: "var(--text)"
-          },
-          ".cm-gutters": {
-            backgroundColor: "var(--gutter-bg)",
-            color: "var(--gutter-text)",
-            borderRight: "1px solid var(--border)"
-          },
-          ".cm-activeLine": { backgroundColor: "var(--active-line)" },
-          ".cm-selectionBackground": { backgroundColor: "var(--selection)" }
-        }, { dark: isDarkTheme() });
-      }
-
-      function applyTheme(mode) {
-        themeMode = mode || "auto";
-        if (themeMode === "auto") {
-          document.body.removeAttribute("data-theme");
-        } else {
-          document.body.setAttribute("data-theme", themeMode);
         }
-        if (view) {
-          view.dispatch({ effects: themeComp.reconfigure(makeTheme()) });
-        }
-      }
 
-      function applyTabSize(size) {
-        tabSize = size;
-        if (view) {
-          view.dispatch({ effects: indentComp.reconfigure(indentUnit.of(" ".repeat(tabSize))) });
-        }
-      }
-
-      function applyFontSize(size) {
-        fontSize = size;
-        if (view) {
-          view.dispatch({ effects: fontComp.reconfigure(makeFontTheme()) });
-        }
-      }
-
-      function insertTab(view) {
-        if (indentMore && !view.state.selection.main.empty) {
-          return indentMore(view);
-        }
-        view.dispatch(view.state.replaceSelection(" ".repeat(tabSize)));
-        return true;
-      }
-
-      // <AUTO_COMPLETIONS>
-      const CUSTOM_COMPLETIONS = {
-          "java":  {
-                       "props":  [
-      
-                                 ],
-                       "methods":  [
-                                       "ajax",
-                                       "ajaxAll",
-                                       "androidId()",
-                                       "base64Decode",
-                                       "base64DecodeToByteArray",
-                                       "base64Encode",
-                                       "bytesToStr",
-                                       "cacheFile",
-                                       "connect",
-                                       "createAsymmetricCrypto",
-                                       "createSign",
-                                       "createSymmetricCrypto",
-                                       "deleteFile",
-                                       "digestBase64Str",
-                                       "digestHex",
-                                       "downloadFile",
-                                       "encodeURI",
-                                       "get",
-                                       "get7zByteArrayContent",
-                                       "get7zStringContent",
-                                       "getCookie",
-                                       "getFile",
-                                       "getRarByteArrayContent",
-                                       "getRarStringContent",
-                                       "getSource()",
-                                       "getTxtInFolder",
-                                       "getVerificationCode",
-                                       "getWebViewUA()",
-                                       "getZipByteArrayContent",
-                                       "getZipStringContent",
-                                       "head",
-                                       "hexDecodeToByteArray",
-                                       "hexDecodeToString",
-                                       "hexEncodeToString",
-                                       "HMacBase64",
-                                       "HMacHex",
-                                       "htmlFormat",
-                                       "importScript",
-                                       "log",
-                                       "logType",
-                                       "longToast",
-                                       "md5Encode",
-                                       "md5Encode16",
-                                       "openUrl",
-                                       "post",
-                                       "queryBase64TTF",
-                                       "queryTTF",
-                                       "randomUUID()",
-                                       "readFile",
-                                       "readTxtFile",
-                                       "replaceFont",
-                                       "s2t",
-                                       "startBrowser",
-                                       "startBrowserAwait",
-                                       "strToBytes",
-                                       "t2s",
-                                       "timeFormat",
-                                       "timeFormatUTC",
-                                       "toast",
-                                       "toNumChapter",
-                                       "toURL",
-                                       "un7zFile",
-                                       "unArchiveFile",
-                                       "unrarFile",
-                                       "unzipFile",
-                                       "webView",
-                                       "webViewGetOverrideUrl",
-                                       "webViewGetSource"
-                                   ]
-                   },
-          "source":  {
-                         "props":  [
-                                       "concurrentRate",
-                                       "enabledCookieJar",
-                                       "header",
-                                       "jsLib",
-                                       "loginUrl"
-                                   ],
-                         "methods":  [
-                                         "evalJS",
-                                         "get",
-                                         "getHeaderMap",
-                                         "getKey()",
-                                         "getLoginHeader()",
-                                         "getLoginHeaderMap()",
-                                         "getLoginInfo()",
-                                         "getLoginInfoMap()",
-                                         "getLoginJs()",
-                                         "getSource()",
-                                         "getTag()",
-                                         "getVariable()",
-                                         "login()",
-                                         "loginUi()",
-                                         "put",
-                                         "putLoginHeader",
-                                         "putLoginInfo",
-                                         "removeLoginHeader()",
-                                         "removeLoginInfo()",
-                                         "setVariable"
-                                     ]
-                     },
-          "cookie":  {
-                         "props":  [
-      
-                                   ],
-                         "methods":  [
-                                         "clear()",
-                                         "cookieToMap",
-                                         "getCookie",
-                                         "getKey",
-                                         "mapToCookie",
-                                         "removeCookie",
-                                         "replaceCookie",
-                                         "setCookie"
-                                     ]
-                     },
-          "cache":  {
-                        "props":  [
-      
-                                  ],
-                        "methods":  [
-                                        "delete",
-                                        "deleteMemory",
-                                        "get",
-                                        "getByteArray",
-                                        "getDouble",
-                                        "getFile",
-                                        "getFloat",
-                                        "getFromMemory",
-                                        "getInt",
-                                        "getLong",
-                                        "put",
-                                        "putFile",
-                                        "putMemory"
-                                    ]
-                    },
-          "book":  {
-                       "props":  [
-                                     "author",
-                                     "bookUrl",
-                                     "canUpdate",
-                                     "charset",
-                                     "config",
-                                     "coverUrl",
-                                     "customCoverUrl",
-                                     "customIntro",
-                                     "customTag",
-                                     "dailyChapters",
-                                     "delTag",
-                                     "downloadUrls",
-                                     "durChapterIndex",
-                                     "durChapterPos",
-                                     "durChapterTime",
-                                     "durChapterTitle",
-                                     "group",
-                                     "imageStyle",
-                                     "infoHtml",
-                                     "intro",
-                                     "kind",
-                                     "lastChapterIndex",
-                                     "lastCheckCount",
-                                     "lastCheckTime",
-                                     "latestChapterTime",
-                                     "latestChapterTitle",
-                                     "name",
-                                     "order",
-                                     "origin",
-                                     "originName",
-                                     "originOrder",
-                                     "pageAnim",
-                                     "readConfig",
-                                     "readSimulating",
-                                     "reSegment",
-                                     "reverseToc",
-                                     "splitLongChapter",
-                                     "startChapter",
-                                     "startDate",
-                                     "syncTime",
-                                     "tocHtml",
-                                     "tocUrl",
-                                     "totalChapterNum",
-                                     "ttsEngine",
-                                     "type",
-                                     "useReplaceRule",
-                                     "variable",
-                                     "variableMap",
-                                     "wordCount"
-                                 ],
-                       "methods":  [
-                                       "addDelTag",
-                                       "createBookMark()",
-                                       "delete()",
-                                       "equals",
-                                       "fileCharset()",
-                                       "getBigVariable",
-                                       "getCustomVariable()",
-                                       "getDailyChapters()",
-                                       "getDelTag",
-                                       "getDisplayCover()",
-                                       "getDisplayIntro()",
-                                       "getFolderName()",
-                                       "getImageStyle()",
-                                       "getKindList()",
-                                       "getPageAnim()",
-                                       "getReadSimulating()",
-                                       "getRealAuthor()",
-                                       "getReSegment()",
-                                       "getReverseToc()",
-                                       "getSplitLongChapter()",
-                                       "getStartChapter()",
-                                       "getStartDate()",
-                                       "getTtsEngine()",
-                                       "getUnreadChapterNum()",
-                                       "getUseReplaceRule()",
-                                       "hashCode()",
-                                       "migrateTo",
-                                       "putBigVariable",
-                                       "putCustomVariable",
-                                       "putVariable",
-                                       "removeDelTag",
-                                       "save()",
-                                       "setDailyChapters",
-                                       "setImageStyle",
-                                       "setPageAnim",
-                                       "setReadSimulating",
-                                       "setReSegment",
-                                       "setReverseToc",
-                                       "setSplitLongChapter",
-                                       "setStartChapter",
-                                       "setStartDate",
-                                       "setTtsEngine",
-                                       "setUseReplaceRule",
-                                       "toSearchBook()",
-                                       "upCustomIntro()"
-                                   ]
-                   },
-          "chapter":  {
-                          "props":  [
-                                        "baseUrl",
-                                        "bookUrl",
-                                        "end",
-                                        "endFragmentId",
-                                        "index",
-                                        "resourceUrl",
-                                        "start",
-                                        "startFragmentId",
-                                        "tag",
-                                        "title",
-                                        "titleMD5",
-                                        "url",
-                                        "variable",
-                                        "variableMap",
-                                        "wordCount"
-                                    ],
-                          "methods":  [
-                                          "ensureTitleMD5Init()",
-                                          "equals",
-                                          "getAbsoluteURL()",
-                                          "getBigVariable",
-                                          "getDisplayTitle",
-                                          "getFileName",
-                                          "getFontName()",
-                                          "hashCode()",
-                                          "isPay()",
-                                          "isVip()",
-                                          "isVolume()",
-                                          "primaryStr()",
-                                          "putBigVariable",
-                                          "putVariable"
-                                      ]
-                      }
-      };
-      // </AUTO_COMPLETIONS>
-
-      function customCompletion(context) {
-        if (!context.explicit) {
-          const prev = context.pos > 0 ? context.state.sliceDoc(context.pos - 1, context.pos) : "";
-          if (prev.trim() === "") return null;
-        }
-        const word = context.matchBefore(/[\w$.]+$/);
-        if (!word) return null;
-        if (!context.explicit && word.from === word.to) return null;
-        const m = word.text.match(COMPLETION_REGEX);
-        if (!m) return null;
-        const base = m[1];
-        const prefix = m[2] || "";
-        const entry = CUSTOM_COMPLETIONS[base] || { methods: [], props: [] };
-        const props = (entry.props || [])
-          .filter((label) => typeof label === "string" && label.startsWith(prefix))
-          .map((label) => ({ label, type: "property", detail: base }));
-        const methods = (entry.methods || [])
-          .filter((label) => typeof label === "string" && label.startsWith(prefix))
-          .map((label) => {
-            const hasParen = label.endsWith("()");
-            const insertText = hasParen ? label : label + "()";
-            return {
-              label,
-              type: "function",
-              detail: base,
-              apply: (view, completion, from, to) => {
-                const anchor = hasParen ? (from + insertText.length) : (from + insertText.length - 1);
-                view.dispatch({
-                  changes: { from, to, insert: insertText },
-                  selection: { anchor, head: anchor }
-                });
-              }
-            };
-          });
-        const options = props.concat(methods);
-        if (!options.length) return null;
-        return {
-          from: word.from + base.length + 1,
-          options,
-          validFor: /^\w*$/
+        const dom = {
+          editorHost: $("editor"),
+          toast: $("toast"),
+          logPanel: $("log-panel"),
+          logBody: $("log-body"),
+          undoBtn: $("undoBtn"),
+          redoBtn: $("redoBtn"),
+          wrapBtn: $("wrapBtn"),
+          formatBtn: $("formatBtn"),
+          formatOptionsBtn: $("formatOptionsBtn"),
+          searchToggleBtn: $("searchToggleBtn"),
+          logToggleBtn: $("logToggleBtn"),
+          logCloseBtn: $("logCloseBtn"),
+          logClearBtn: $("logClearBtn"),
+          wrapElementsToggle: $("wrapElementsToggle"),
+          indentSizeSelect: $("indentSizeSelect"),
+          fontSizeSelect: $("fontSizeSelect"),
+          printWidthSelect: $("printWidthSelect"),
+          themeSelect: $("themeSelect"),
+          singleQuoteToggle: $("singleQuoteToggle"),
+          trailingCommaToggle: $("trailingCommaToggle"),
+          formatOptions: $("format-options")
         };
-      }
 
-      function buildAutocompleteExtensions() {
-        if (!autocompletion) return [];
-        return [autocompletion({
-          activateOnTyping: true,
-          maxRenderedOptions: 200
-        })];
-      }
-      function buildExtensions() {
-        const tabKey = { key: "Tab", run: insertTab, shift: indentLess || undefined };
-        const enterKey = insertNewlineAndIndent
-          ? { key: "Enter", run: insertNewlineAndIndent }
-          : null;
-        const closeKeymap = Array.isArray(closeBracketsKeymap)
-          ? closeBracketsKeymap
-          : (closeBracketsKeymap ? [closeBracketsKeymap] : []);
-        const exts = [];
-        if (typeof history === "function") exts.push(history());
-        if (keymap && typeof keymap.of === "function") {
-          const km = [tabKey, ...closeKeymap];
-          if (enterKey) km.unshift(enterKey);
-          exts.push(keymap.of(km));
+        const CM = window.CodeMirrorBundle;
+        if (!CM || !CM.EditorView) {
+          bootError("CodeMirror 未加载，请确认 codemirror.bundle.js 已打包并可访问");
+          return;
         }
-        if (typeof lineNumbers === "function") exts.push(lineNumbers());
-        if (typeof highlightActiveLineGutter === "function") exts.push(highlightActiveLineGutter());
-        if (typeof foldGutter === "function") exts.push(foldGutter());
-        if (wrapComp && EditorView && EditorView.lineWrapping) exts.push(wrapComp.of(isWrap ? EditorView.lineWrapping : []));
-        if (indentComp && indentUnit && typeof indentUnit.of === "function") {
-          exts.push(indentComp.of(indentUnit.of(" ".repeat(tabSize))));
-        }
-        if (typeof javascript === "function") exts.push(javascript());
-        if (typeof indentOnInput === "function") exts.push(indentOnInput());
-        if (typeof closeBrackets === "function") exts.push(closeBrackets());
-        if (typeof bracketMatching === "function") exts.push(bracketMatching());
-        if (typeof syntaxHighlighting === "function") {
-          exts.push(syntaxHighlighting(defaultHighlightStyle, { fallback: true }));
-        }
-        if (typeof highlightSelectionMatches === "function") exts.push(highlightSelectionMatches());
-        if (EditorState && EditorState.languageData && typeof EditorState.languageData.of === "function") {
-          exts.push(EditorState.languageData.of((state, pos, side) => [{ autocomplete: customCompletion }]));
-        }
-        exts.push(...buildAutocompleteExtensions());
-        if (themeComp) exts.push(themeComp.of(makeTheme()));
-        if (fontComp) exts.push(fontComp.of(makeFontTheme()));
-        return exts;
-      }
 
-      loadSettings();
+        const {
+          EditorState,
+          Compartment,
+          EditorView,
+          keymap,
+          lineNumbers,
+          highlightActiveLineGutter,
+          history,
+          undo,
+          redo,
+          indentOnInput,
+          bracketMatching,
+          syntaxHighlighting,
+          defaultHighlightStyle,
+          indentUnit,
+          foldGutter,
+          highlightSelectionMatches,
+          openSearchPanel,
+          autocompletion,
+          closeBrackets,
+          closeBracketsKeymap,
+          javascript,
+          indentMore,
+          indentLess,
+          insertNewlineAndIndent
+        } = CM;
 
-      let view;
-      try {
-        view = new EditorView({
-          state: EditorState.create({ doc: "", extensions: buildExtensions() }),
-          parent: dom.editorHost
-        });
-      } catch (e) {
-        appendLog("error", e && e.message ? e.message : e);
-        bootError("编辑器初始化失败: " + (e && e.message ? e.message : e));
-        return;
-      }
-      window.__LEGADO_EDITOR_BOOTED = true;
+        let isWrap = false;
+        let wrapElements = true;
+        let tabSize = 2;
+        let fontSize = "auto";
+        let printWidth = 120;
+        let singleQuote = false;
+        let trailingComma = true;
+        let themeMode = "auto";
 
-      const syncAutoTheme = () => {
-        if (themeMode !== "auto") return;
-        view.dispatch({ effects: themeComp.reconfigure(makeTheme()) });
-      };
-      if (mediaDark) {
-        if (typeof mediaDark.addEventListener === "function") {
-          mediaDark.addEventListener("change", syncAutoTheme);
-        } else if (typeof mediaDark.addListener === "function") {
-          mediaDark.addListener(syncAutoTheme);
-        }
-      }
+        let logLines = [];
+        let isLogOpen = false;
 
-      function getCode() {
-        return view.state.doc.toString();
-      }
-
-      function resetDoc(text) {
-        const doc = text || "";
-        view.setState(EditorState.create({ doc, extensions: buildExtensions() }));
-      }
-
-      function detectWrapper(rawText) {
-        const raw = rawText || "";
-        const trimmed = raw.trim();
-        const jsPrefixMatch = raw.match(/^\s*@js:\s*[\r\n]?([\s\S]*)$/);
-        if (jsPrefixMatch) {
-          return { type: "prefix", prefix: "@js:", body: jsPrefixMatch[1] || "" };
-        }
-        const tagMatch = trimmed.match(/^<js>\s*([\s\S]*?)\s*<\/js>$/i);
-        if (tagMatch) {
-          return { type: "tag", open: "<js>", close: "</js>", body: tagMatch[1] };
-        }
-        const braceMatch = trimmed.match(/^\{\{\s*([\s\S]*?)\s*\}\}$/);
-        if (braceMatch) {
-          return { type: "moustache", body: braceMatch[1] };
-        }
-        return null;
-      }
-
-      async function formatWithPrettier(codeText, parser) {
-        if (!window.prettier || !window.prettierPlugins) {
-          throw new Error("Prettier 未加载");
-        }
-        const plugins = [];
-        if (window.prettierPlugins.babel) plugins.push(window.prettierPlugins.babel);
-        if (window.prettierPlugins.estree) plugins.push(window.prettierPlugins.estree);
-        if (!plugins.length) {
-          throw new Error("Prettier 插件未加载");
-        }
-        const width = wrapElements ? printWidth : Math.max(printWidth, 99999);
-        return window.prettier.format(codeText, {
-          parser: parser || "babel",
-          plugins: plugins,
-          tabWidth: tabSize,
-          useTabs: false,
-          singleQuote: singleQuote,
-          trailingComma: trailingComma ? "es5" : "none",
-          printWidth: width
-        });
-      }
-
-      async function formatCode() {
-        const raw = getCode();
-        const text = raw.trim();
-        if (!text) return;
-        showToast("格式化中...");
-        await new Promise(requestAnimationFrame);
-        try {
-          const wrapper = detectWrapper(raw);
-          let formattedBody = await formatWithPrettier(wrapper ? wrapper.body : text, "babel");
-          if (wrapper) {
-            if (wrapper.type === "prefix") {
-              formattedBody = wrapper.prefix + "\n" + formattedBody;
-            } else if (wrapper.type === "tag") {
-              formattedBody = wrapper.open + "\n" + formattedBody + "\n" + wrapper.close;
-            } else if (wrapper.type === "moustache") {
-              formattedBody = "{{\n" + formattedBody + "\n}}";
-            }
+        function appendLog(level, msg) {
+          const time = new Date().toISOString().replace("T", " ").replace("Z", "");
+          const text = String(msg == null ? "" : msg);
+          const line = `[${time}] ${level}: ${text.length > 1000 ? text.slice(0, 1000) + "…" : text}`;
+          logLines.push(line);
+          if (logLines.length > LOG_MAX) logLines.shift();
+          if (isLogOpen && dom.logBody) {
+            dom.logBody.textContent = logLines.join("\n");
+            dom.logBody.scrollTop = dom.logBody.scrollHeight;
           }
-          resetDoc(formattedBody);
-          showToast("格式化完成（Prettier）");
+        }
+
+        function loadSettings() {
+          try {
+            const raw = window.localStorage ? window.localStorage.getItem(SETTINGS_KEY) : null;
+            if (!raw) return;
+            const data = JSON.parse(raw);
+            if (data && typeof data === "object") {
+              if (typeof data.wrapElements === "boolean") wrapElements = data.wrapElements;
+              if (data.tabSize != null) tabSize = parseInt(data.tabSize, 10) || tabSize;
+              if (data.fontSize != null) fontSize = String(data.fontSize);
+              if (data.printWidth != null) printWidth = parseInt(data.printWidth, 10) || printWidth;
+              if (typeof data.singleQuote === "boolean") singleQuote = data.singleQuote;
+              if (typeof data.trailingComma === "boolean") trailingComma = data.trailingComma;
+              if (typeof data.themeMode === "string") themeMode = data.themeMode;
+            }
+          } catch (e) { }
+        }
+
+        function saveSettings() {
+          try {
+            if (!window.localStorage) return;
+            const data = {
+              wrapElements,
+              tabSize,
+              fontSize,
+              printWidth,
+              singleQuote,
+              trailingComma,
+              themeMode
+            };
+            window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(data));
+          } catch (e) { }
+        }
+
+        const wrapComp = new Compartment();
+        const themeComp = new Compartment();
+        const fontComp = new Compartment();
+        const indentComp = new Compartment();
+        const mediaDark = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+
+        function isDarkTheme() {
+          if (themeMode === "auto") return !!(mediaDark && mediaDark.matches);
+          return themeMode === "dark" || themeMode === "nord";
+        }
+
+        function getSystemFontSize() {
+          const size = parseFloat(window.getComputedStyle(document.body).fontSize);
+          return isNaN(size) ? 13 : size;
+        }
+
+        function makeFontTheme() {
+          const px = fontSize === "auto" ? getSystemFontSize() : (parseInt(fontSize, 10) || 13);
+          return EditorView.theme({
+            ".cm-scroller": {
+              fontFamily: "inherit",
+              fontSize: px + "px",
+              lineHeight: "1.5",
+              overflow: "auto"
+            },
+            ".cm-content": { padding: "10px" },
+            ".cm-gutters": { fontSize: px + "px" }
+          });
+        }
+
+        function makeTheme() {
+          return EditorView.theme({
+            "&": {
+              height: "100%",
+              backgroundColor: "var(--bg)",
+              color: "var(--text)"
+            },
+            ".cm-gutters": {
+              backgroundColor: "var(--gutter-bg)",
+              color: "var(--gutter-text)",
+              borderRight: "1px solid var(--border)"
+            },
+            ".cm-activeLine": { backgroundColor: "var(--active-line)" },
+            ".cm-selectionBackground": { backgroundColor: "var(--selection)" }
+          }, { dark: isDarkTheme() });
+        }
+
+        function applyTheme(mode) {
+          themeMode = mode || "auto";
+          if (themeMode === "auto") {
+            document.body.removeAttribute("data-theme");
+          } else {
+            document.body.setAttribute("data-theme", themeMode);
+          }
+          if (view) {
+            view.dispatch({ effects: themeComp.reconfigure(makeTheme()) });
+          }
+        }
+
+        function applyTabSize(size) {
+          tabSize = size;
+          if (view) {
+            view.dispatch({ effects: indentComp.reconfigure(indentUnit.of(" ".repeat(tabSize))) });
+          }
+        }
+
+        function applyFontSize(size) {
+          fontSize = size;
+          if (view) {
+            view.dispatch({ effects: fontComp.reconfigure(makeFontTheme()) });
+          }
+        }
+
+        function insertTab(view) {
+          if (indentMore && !view.state.selection.main.empty) {
+            return indentMore(view);
+          }
+          view.dispatch(view.state.replaceSelection(" ".repeat(tabSize)));
+          return true;
+        }
+
+        // <AUTO_COMPLETIONS>
+        const CUSTOM_COMPLETIONS = {
+          "java": {
+            "props": [
+
+            ],
+            "methods": [
+              "ajax",
+              "ajaxAll",
+              "androidId()",
+              "base64Decode",
+              "base64DecodeToByteArray",
+              "base64Encode",
+              "bytesToStr",
+              "cacheFile",
+              "connect",
+              "createAsymmetricCrypto",
+              "createSign",
+              "createSymmetricCrypto",
+              "deleteFile",
+              "digestBase64Str",
+              "digestHex",
+              "downloadFile",
+              "encodeURI",
+              "get",
+              "get7zByteArrayContent",
+              "get7zStringContent",
+              "getCookie",
+              "getFile",
+              "getRarByteArrayContent",
+              "getRarStringContent",
+              "getSource()",
+              "getTxtInFolder",
+              "getVerificationCode",
+              "getWebViewUA()",
+              "getZipByteArrayContent",
+              "getZipStringContent",
+              "head",
+              "hexDecodeToByteArray",
+              "hexDecodeToString",
+              "hexEncodeToString",
+              "HMacBase64",
+              "HMacHex",
+              "htmlFormat",
+              "importScript",
+              "log",
+              "logType",
+              "longToast",
+              "md5Encode",
+              "md5Encode16",
+              "openUrl",
+              "post",
+              "queryBase64TTF",
+              "queryTTF",
+              "randomUUID()",
+              "readFile",
+              "readTxtFile",
+              "replaceFont",
+              "s2t",
+              "startBrowser",
+              "startBrowserAwait",
+              "strToBytes",
+              "t2s",
+              "timeFormat",
+              "timeFormatUTC",
+              "toast",
+              "toNumChapter",
+              "toURL",
+              "un7zFile",
+              "unArchiveFile",
+              "unrarFile",
+              "unzipFile",
+              "webView",
+              "webViewGetOverrideUrl",
+              "webViewGetSource"
+            ]
+          },
+          "source": {
+            "props": [
+              "concurrentRate",
+              "enabledCookieJar",
+              "header",
+              "jsLib",
+              "loginUrl"
+            ],
+            "methods": [
+              "evalJS",
+              "get",
+              "getHeaderMap",
+              "getKey()",
+              "getLoginHeader()",
+              "getLoginHeaderMap()",
+              "getLoginInfo()",
+              "getLoginInfoMap()",
+              "getLoginJs()",
+              "getSource()",
+              "getTag()",
+              "getVariable()",
+              "login()",
+              "loginUi()",
+              "put",
+              "putLoginHeader",
+              "putLoginInfo",
+              "removeLoginHeader()",
+              "removeLoginInfo()",
+              "setVariable"
+            ]
+          },
+          "cookie": {
+            "props": [
+
+            ],
+            "methods": [
+              "clear()",
+              "cookieToMap",
+              "getCookie",
+              "getKey",
+              "mapToCookie",
+              "removeCookie",
+              "replaceCookie",
+              "setCookie"
+            ]
+          },
+          "cache": {
+            "props": [
+
+            ],
+            "methods": [
+              "delete",
+              "deleteMemory",
+              "get",
+              "getByteArray",
+              "getDouble",
+              "getFile",
+              "getFloat",
+              "getFromMemory",
+              "getInt",
+              "getLong",
+              "put",
+              "putFile",
+              "putMemory"
+            ]
+          },
+          "book": {
+            "props": [
+              "author",
+              "bookUrl",
+              "canUpdate",
+              "charset",
+              "config",
+              "coverUrl",
+              "customCoverUrl",
+              "customIntro",
+              "customTag",
+              "dailyChapters",
+              "delTag",
+              "downloadUrls",
+              "durChapterIndex",
+              "durChapterPos",
+              "durChapterTime",
+              "durChapterTitle",
+              "group",
+              "imageStyle",
+              "infoHtml",
+              "intro",
+              "kind",
+              "lastChapterIndex",
+              "lastCheckCount",
+              "lastCheckTime",
+              "latestChapterTime",
+              "latestChapterTitle",
+              "name",
+              "order",
+              "origin",
+              "originName",
+              "originOrder",
+              "pageAnim",
+              "readConfig",
+              "readSimulating",
+              "reSegment",
+              "reverseToc",
+              "splitLongChapter",
+              "startChapter",
+              "startDate",
+              "syncTime",
+              "tocHtml",
+              "tocUrl",
+              "totalChapterNum",
+              "ttsEngine",
+              "type",
+              "useReplaceRule",
+              "variable",
+              "variableMap",
+              "wordCount"
+            ],
+            "methods": [
+              "addDelTag",
+              "createBookMark()",
+              "delete()",
+              "equals",
+              "fileCharset()",
+              "getBigVariable",
+              "getCustomVariable()",
+              "getDailyChapters()",
+              "getDelTag",
+              "getDisplayCover()",
+              "getDisplayIntro()",
+              "getFolderName()",
+              "getImageStyle()",
+              "getKindList()",
+              "getPageAnim()",
+              "getReadSimulating()",
+              "getRealAuthor()",
+              "getReSegment()",
+              "getReverseToc()",
+              "getSplitLongChapter()",
+              "getStartChapter()",
+              "getStartDate()",
+              "getTtsEngine()",
+              "getUnreadChapterNum()",
+              "getUseReplaceRule()",
+              "hashCode()",
+              "migrateTo",
+              "putBigVariable",
+              "putCustomVariable",
+              "putVariable",
+              "removeDelTag",
+              "save()",
+              "setDailyChapters",
+              "setImageStyle",
+              "setPageAnim",
+              "setReadSimulating",
+              "setReSegment",
+              "setReverseToc",
+              "setSplitLongChapter",
+              "setStartChapter",
+              "setStartDate",
+              "setTtsEngine",
+              "setUseReplaceRule",
+              "toSearchBook()",
+              "upCustomIntro()"
+            ]
+          },
+          "chapter": {
+            "props": [
+              "baseUrl",
+              "bookUrl",
+              "end",
+              "endFragmentId",
+              "index",
+              "resourceUrl",
+              "start",
+              "startFragmentId",
+              "tag",
+              "title",
+              "titleMD5",
+              "url",
+              "variable",
+              "variableMap",
+              "wordCount"
+            ],
+            "methods": [
+              "ensureTitleMD5Init()",
+              "equals",
+              "getAbsoluteURL()",
+              "getBigVariable",
+              "getDisplayTitle",
+              "getFileName",
+              "getFontName()",
+              "hashCode()",
+              "isPay()",
+              "isVip()",
+              "isVolume()",
+              "primaryStr()",
+              "putBigVariable",
+              "putVariable"
+            ]
+          }
+        };
+        // </AUTO_COMPLETIONS>
+
+        const COMPLETION_KEYS = Object.keys(CUSTOM_COMPLETIONS);
+        const COMPLETION_REGEX = new RegExp(`^(${COMPLETION_KEYS.join("|")})\\.([\\w]*)$`);
+
+        function customCompletion(context) {
+          if (!context.explicit) {
+            const prev = context.pos > 0 ? context.state.sliceDoc(context.pos - 1, context.pos) : "";
+            if (prev.trim() === "") return null;
+          }
+          const word = context.matchBefore(/[\w$.]+$/);
+          if (!word) return null;
+          if (!context.explicit && word.from === word.to) return null;
+          const m = word.text.match(COMPLETION_REGEX);
+          if (!m) return null;
+          const base = m[1];
+          const prefix = m[2] || "";
+          const entry = CUSTOM_COMPLETIONS[base] || { methods: [], props: [] };
+          const props = (entry.props || [])
+            .filter((label) => typeof label === "string" && label.startsWith(prefix))
+            .map((label) => ({ label, type: "property", detail: base }));
+          const methods = (entry.methods || [])
+            .filter((label) => typeof label === "string" && label.startsWith(prefix))
+            .map((label) => {
+              const hasParen = label.endsWith("()");
+              const insertText = hasParen ? label : label + "()";
+              return {
+                label,
+                type: "function",
+                detail: base,
+                apply: (view, completion, from, to) => {
+                  const anchor = hasParen ? (from + insertText.length) : (from + insertText.length - 1);
+                  view.dispatch({
+                    changes: { from, to, insert: insertText },
+                    selection: { anchor, head: anchor }
+                  });
+                }
+              };
+            });
+          const options = props.concat(methods);
+          if (!options.length) return null;
+          return {
+            from: word.from + base.length + 1,
+            options,
+            validFor: /^\w*$/
+          };
+        }
+
+        function buildAutocompleteExtensions() {
+          if (!autocompletion) return [];
+          return [autocompletion({
+            activateOnTyping: true,
+            maxRenderedOptions: 200
+          })];
+        }
+        function buildExtensions() {
+          const tabKey = { key: "Tab", run: insertTab, shift: indentLess || undefined };
+          const enterKey = insertNewlineAndIndent
+            ? { key: "Enter", run: insertNewlineAndIndent }
+            : null;
+          const closeKeymap = Array.isArray(closeBracketsKeymap)
+            ? closeBracketsKeymap
+            : (closeBracketsKeymap ? [closeBracketsKeymap] : []);
+          const exts = [];
+          if (typeof history === "function") exts.push(history());
+          if (keymap && typeof keymap.of === "function") {
+            const km = [tabKey, ...closeKeymap];
+            if (enterKey) km.unshift(enterKey);
+            exts.push(keymap.of(km));
+          }
+          if (typeof lineNumbers === "function") exts.push(lineNumbers());
+          if (typeof highlightActiveLineGutter === "function") exts.push(highlightActiveLineGutter());
+          if (typeof foldGutter === "function") exts.push(foldGutter());
+          if (wrapComp && EditorView && EditorView.lineWrapping) exts.push(wrapComp.of(isWrap ? EditorView.lineWrapping : []));
+          if (indentComp && indentUnit && typeof indentUnit.of === "function") {
+            exts.push(indentComp.of(indentUnit.of(" ".repeat(tabSize))));
+          }
+          if (typeof javascript === "function") exts.push(javascript());
+          if (typeof indentOnInput === "function") exts.push(indentOnInput());
+          if (typeof closeBrackets === "function") exts.push(closeBrackets());
+          if (typeof bracketMatching === "function") exts.push(bracketMatching());
+          if (typeof syntaxHighlighting === "function") {
+            exts.push(syntaxHighlighting(defaultHighlightStyle, { fallback: true }));
+          }
+          if (typeof highlightSelectionMatches === "function") exts.push(highlightSelectionMatches());
+          if (EditorState && EditorState.languageData && typeof EditorState.languageData.of === "function") {
+            exts.push(EditorState.languageData.of((state, pos, side) => [{ autocomplete: customCompletion }]));
+          }
+          exts.push(...buildAutocompleteExtensions());
+          if (themeComp) exts.push(themeComp.of(makeTheme()));
+          if (fontComp) exts.push(fontComp.of(makeFontTheme()));
+          return exts;
+        }
+
+        loadSettings();
+
+        let view;
+        try {
+          view = new EditorView({
+            state: EditorState.create({ doc: "", extensions: buildExtensions() }),
+            parent: dom.editorHost
+          });
         } catch (e) {
           appendLog("error", e && e.message ? e.message : e);
-          showToast("格式化失败");
+          bootError("编辑器初始化失败: " + (e && e.message ? e.message : e));
+          return;
         }
-      }
+        window.__LEGADO_EDITOR_BOOTED = true;
 
-      dom.undoBtn.onclick = () => undo(view);
-      dom.redoBtn.onclick = () => redo(view);
-      dom.formatBtn.onclick = formatCode;
-
-      const wrapBtn = dom.wrapBtn;
-      wrapBtn.onclick = () => {
-        isWrap = !isWrap;
-        view.dispatch({ effects: wrapComp.reconfigure(isWrap ? EditorView.lineWrapping : []) });
-        wrapBtn.classList.toggle("active", isWrap);
-        showToast("自动换行: " + (isWrap ? "开" : "关"));
-      };
-      const formatOptionsBtn = dom.formatOptionsBtn;
-      const formatOptions = dom.formatOptions;
-      const wrapElementsToggle = dom.wrapElementsToggle;
-      const indentSizeSelect = dom.indentSizeSelect;
-      const fontSizeSelect = dom.fontSizeSelect;
-      const printWidthSelect = dom.printWidthSelect;
-      const themeSelect = dom.themeSelect;
-      const singleQuoteToggle = dom.singleQuoteToggle;
-      const trailingCommaToggle = dom.trailingCommaToggle;
-
-      wrapElementsToggle.checked = wrapElements;
-      indentSizeSelect.value = String(tabSize);
-      fontSizeSelect.value = String(fontSize);
-      printWidthSelect.value = String(printWidth);
-      themeSelect.value = String(themeMode);
-      singleQuoteToggle.checked = singleQuote;
-      trailingCommaToggle.checked = trailingComma;
-
-      applyTabSize(tabSize);
-      applyFontSize(fontSize);
-      applyTheme(themeMode);
-
-      wrapElementsToggle.addEventListener("change", () => {
-        wrapElements = wrapElementsToggle.checked;
-        showToast("元素换行: " + (wrapElements ? "开" : "关"));
-        saveSettings();
-      });
-      indentSizeSelect.addEventListener("change", () => {
-        applyTabSize(parseInt(indentSizeSelect.value, 10) || 2);
-        showToast("缩进: " + tabSize);
-        saveSettings();
-      });
-      fontSizeSelect.addEventListener("change", () => {
-        applyFontSize(fontSizeSelect.value || "auto");
-        showToast("字号: " + (fontSize === "auto" ? "自动" : fontSize));
-        saveSettings();
-      });
-      printWidthSelect.addEventListener("change", () => {
-        printWidth = parseInt(printWidthSelect.value, 10) || 120;
-        showToast("宽度: " + printWidth);
-        saveSettings();
-      });
-      themeSelect.addEventListener("change", () => {
-        applyTheme(themeSelect.value || "auto");
-        showToast("主题: " + (themeMode === "auto" ? "系统" : themeMode));
-        saveSettings();
-      });
-      singleQuoteToggle.addEventListener("change", () => {
-        singleQuote = singleQuoteToggle.checked;
-        showToast("单引号: " + (singleQuote ? "开" : "关"));
-        saveSettings();
-      });
-      trailingCommaToggle.addEventListener("change", () => {
-        trailingComma = trailingCommaToggle.checked;
-        showToast("末尾逗号: " + (trailingComma ? "开" : "关"));
-        saveSettings();
-      });
-
-      formatOptionsBtn.onclick = (e) => {
-        e.stopPropagation();
-        formatOptions.classList.toggle("show");
-      };
-      document.addEventListener("click", (e) => {
-        if (!formatOptions.classList.contains("show")) return;
-        if (formatOptions.contains(e.target) || e.target === formatOptionsBtn) return;
-        formatOptions.classList.remove("show");
-      });
-
-      dom.searchToggleBtn.onclick = () => {
-        if (typeof openSearchPanel === "function") {
-          openSearchPanel(view);
-          view.focus();
-        } else {
-          showToast("搜索模块未加载");
-        }
-      };
-
-
-      const logToggleBtn = dom.logToggleBtn;
-      const logCloseBtn = dom.logCloseBtn;
-      const logClearBtn = dom.logClearBtn;
-      logToggleBtn.onclick = () => {
-        dom.logPanel.classList.toggle("show");
-        isLogOpen = dom.logPanel.classList.contains("show");
-        if (isLogOpen && dom.logBody) {
-          dom.logBody.textContent = logLines.join("\n");
-          dom.logBody.scrollTop = dom.logBody.scrollHeight;
-        }
-      };
-      logCloseBtn.onclick = () => {
-        dom.logPanel.classList.remove("show");
-        isLogOpen = false;
-      };
-      logClearBtn.onclick = () => {
-        logLines = [];
-        if (isLogOpen && dom.logBody) dom.logBody.textContent = "";
-      };
-
-      let toastTimer = null;
-      function showToast(msg) {
-        dom.toast.textContent = msg;
-        dom.toast.classList.add("show");
-        clearTimeout(toastTimer);
-        toastTimer = setTimeout(() => dom.toast.classList.remove("show"), TOAST_MS);
-      }
-
-      function b64ToUtf8(b64) {
-        try {
-          const bin = window.atob(b64);
-          if (window.TextDecoder) {
-            const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
-            return new TextDecoder("utf-8").decode(bytes);
-          }
-          return decodeURIComponent(escape(bin));
-        } catch (e) {
-          return "";
-        }
-      }
-
-      window.__LEGADO_RUNTIME_ERROR_HANDLER = function (kind, e) {
-        const unknown = "发生未知错误";
-        let msg = unknown;
-        let stack = "";
-
-        if (kind === "promise") {
-          const r = e && e.reason != null ? e.reason : unknown;
-          msg = typeof r === "string" ? r : r && r.message ? r.message : String(r);
-          stack = r && r.stack ? String(r.stack) : "";
-        } else {
-          msg = e && e.message ? e.message : unknown;
-          stack = e && e.error && e.error.stack ? String(e.error.stack) : "";
-        }
-
-        appendLog(kind, msg + (stack ? "\n" + stack : ""));
-        showToast("发生错误：" + msg);
-      };
-
-      window.setCodeFromAndroid = function (b64) {
-        resetDoc(b64ToUtf8(b64));
-      };
-
-      window.__save = function () {
-        const val = getCode();
-        if (window.Android && window.Android.save) window.Android.save(val);
-        else console.log("Mock Save:", val);
-      };
-
-      window.__getCode = function () {
-        return getCode();
-      };
-
-      if (window.visualViewport) {
-        const syncViewport = () => {
-          const h = window.visualViewport.height;
-          document.documentElement.style.height = h + "px";
-          document.body.style.height = h + "px";
-          if (fontSize === "auto") applyFontSize("auto");
+        const syncAutoTheme = () => {
+          if (themeMode !== "auto") return;
+          view.dispatch({ effects: themeComp.reconfigure(makeTheme()) });
         };
-        const vvSync = debounce(syncViewport, 50);
-        window.visualViewport.addEventListener("resize", vvSync);
-        window.visualViewport.addEventListener("scroll", vvSync);
-        syncViewport();
-      }
+        if (mediaDark) {
+          if (typeof mediaDark.addEventListener === "function") {
+            mediaDark.addEventListener("change", syncAutoTheme);
+          } else if (typeof mediaDark.addListener === "function") {
+            mediaDark.addListener(syncAutoTheme);
+          }
+        }
 
-      window.addEventListener("resize", () => {
-        if (fontSize === "auto") applyFontSize("auto");
-      });
-      const __err = console.error.bind(console);
-      console.error = function (...args) {
-        const safe = args.map(a => {
-          if (typeof a === "string") return a;
-          try { return JSON.stringify(a); } catch (e) { return String(a); }
-        }).join(" ");
-        appendLog("error", safe);
-        __err(...args);
-      };
+        function getCode() {
+          return view.state.doc.toString();
+        }
+
+        function resetDoc(text) {
+          const doc = text || "";
+          view.setState(EditorState.create({ doc, extensions: buildExtensions() }));
+        }
+
+        function detectWrapper(rawText) {
+          const raw = rawText || "";
+          const trimmed = raw.trim();
+          const jsPrefixMatch = raw.match(/^\s*@js:\s*[\r\n]?([\s\S]*)$/);
+          if (jsPrefixMatch) {
+            return { type: "prefix", prefix: "@js:", body: jsPrefixMatch[1] || "" };
+          }
+          const tagMatch = trimmed.match(/^<js>\s*([\s\S]*?)\s*<\/js>$/i);
+          if (tagMatch) {
+            return { type: "tag", open: "<js>", close: "</js>", body: tagMatch[1] };
+          }
+          const braceMatch = trimmed.match(/^\{\{\s*([\s\S]*?)\s*\}\}$/);
+          if (braceMatch) {
+            return { type: "moustache", body: braceMatch[1] };
+          }
+          return null;
+        }
+
+        async function formatWithPrettier(codeText, parser) {
+          if (!window.prettier || !window.prettierPlugins) {
+            throw new Error("Prettier 未加载");
+          }
+          const plugins = [];
+          if (window.prettierPlugins.babel) plugins.push(window.prettierPlugins.babel);
+          if (window.prettierPlugins.estree) plugins.push(window.prettierPlugins.estree);
+          if (!plugins.length) {
+            throw new Error("Prettier 插件未加载");
+          }
+          const width = wrapElements ? printWidth : Math.max(printWidth, 99999);
+          return window.prettier.format(codeText, {
+            parser: parser || "babel",
+            plugins: plugins,
+            tabWidth: tabSize,
+            useTabs: false,
+            singleQuote: singleQuote,
+            trailingComma: trailingComma ? "es5" : "none",
+            printWidth: width
+          });
+        }
+
+        async function formatCode() {
+          const raw = getCode();
+          const text = raw.trim();
+          if (!text) return;
+          showToast("格式化中...");
+          await new Promise(requestAnimationFrame);
+          try {
+            const wrapper = detectWrapper(raw);
+            let formattedBody = await formatWithPrettier(wrapper ? wrapper.body : text, "babel");
+            if (wrapper) {
+              if (wrapper.type === "prefix") {
+                formattedBody = wrapper.prefix + "\n" + formattedBody;
+              } else if (wrapper.type === "tag") {
+                formattedBody = wrapper.open + "\n" + formattedBody + "\n" + wrapper.close;
+              } else if (wrapper.type === "moustache") {
+                formattedBody = "{{\n" + formattedBody + "\n}}";
+              }
+            }
+            resetDoc(formattedBody);
+            showToast("格式化完成（Prettier）");
+          } catch (e) {
+            appendLog("error", e && e.message ? e.message : e);
+            showToast("格式化失败");
+          }
+        }
+
+        dom.undoBtn.onclick = () => undo(view);
+        dom.redoBtn.onclick = () => redo(view);
+        dom.formatBtn.onclick = formatCode;
+
+        const wrapBtn = dom.wrapBtn;
+        wrapBtn.onclick = () => {
+          isWrap = !isWrap;
+          view.dispatch({ effects: wrapComp.reconfigure(isWrap ? EditorView.lineWrapping : []) });
+          wrapBtn.classList.toggle("active", isWrap);
+          showToast("自动换行: " + (isWrap ? "开" : "关"));
+        };
+        const formatOptionsBtn = dom.formatOptionsBtn;
+        const formatOptions = dom.formatOptions;
+        const wrapElementsToggle = dom.wrapElementsToggle;
+        const indentSizeSelect = dom.indentSizeSelect;
+        const fontSizeSelect = dom.fontSizeSelect;
+        const printWidthSelect = dom.printWidthSelect;
+        const themeSelect = dom.themeSelect;
+        const singleQuoteToggle = dom.singleQuoteToggle;
+        const trailingCommaToggle = dom.trailingCommaToggle;
+
+        wrapElementsToggle.checked = wrapElements;
+        indentSizeSelect.value = String(tabSize);
+        fontSizeSelect.value = String(fontSize);
+        printWidthSelect.value = String(printWidth);
+        themeSelect.value = String(themeMode);
+        singleQuoteToggle.checked = singleQuote;
+        trailingCommaToggle.checked = trailingComma;
+
+        applyTabSize(tabSize);
+        applyFontSize(fontSize);
+        applyTheme(themeMode);
+
+        wrapElementsToggle.addEventListener("change", () => {
+          wrapElements = wrapElementsToggle.checked;
+          showToast("元素换行: " + (wrapElements ? "开" : "关"));
+          saveSettings();
+        });
+        indentSizeSelect.addEventListener("change", () => {
+          applyTabSize(parseInt(indentSizeSelect.value, 10) || 2);
+          showToast("缩进: " + tabSize);
+          saveSettings();
+        });
+        fontSizeSelect.addEventListener("change", () => {
+          applyFontSize(fontSizeSelect.value || "auto");
+          showToast("字号: " + (fontSize === "auto" ? "自动" : fontSize));
+          saveSettings();
+        });
+        printWidthSelect.addEventListener("change", () => {
+          printWidth = parseInt(printWidthSelect.value, 10) || 120;
+          showToast("宽度: " + printWidth);
+          saveSettings();
+        });
+        themeSelect.addEventListener("change", () => {
+          applyTheme(themeSelect.value || "auto");
+          showToast("主题: " + (themeMode === "auto" ? "系统" : themeMode));
+          saveSettings();
+        });
+        singleQuoteToggle.addEventListener("change", () => {
+          singleQuote = singleQuoteToggle.checked;
+          showToast("单引号: " + (singleQuote ? "开" : "关"));
+          saveSettings();
+        });
+        trailingCommaToggle.addEventListener("change", () => {
+          trailingComma = trailingCommaToggle.checked;
+          showToast("末尾逗号: " + (trailingComma ? "开" : "关"));
+          saveSettings();
+        });
+
+        formatOptionsBtn.onclick = (e) => {
+          e.stopPropagation();
+          formatOptions.classList.toggle("show");
+        };
+        document.addEventListener("click", (e) => {
+          if (!formatOptions.classList.contains("show")) return;
+          if (formatOptions.contains(e.target) || e.target === formatOptionsBtn) return;
+          formatOptions.classList.remove("show");
+        });
+
+        dom.searchToggleBtn.onclick = () => {
+          if (typeof openSearchPanel === "function") {
+            openSearchPanel(view);
+            view.focus();
+          } else {
+            showToast("搜索模块未加载");
+          }
+        };
+
+
+        const logToggleBtn = dom.logToggleBtn;
+        const logCloseBtn = dom.logCloseBtn;
+        const logClearBtn = dom.logClearBtn;
+        logToggleBtn.onclick = () => {
+          dom.logPanel.classList.toggle("show");
+          isLogOpen = dom.logPanel.classList.contains("show");
+          if (isLogOpen && dom.logBody) {
+            dom.logBody.textContent = logLines.join("\n");
+            dom.logBody.scrollTop = dom.logBody.scrollHeight;
+          }
+        };
+        logCloseBtn.onclick = () => {
+          dom.logPanel.classList.remove("show");
+          isLogOpen = false;
+        };
+        logClearBtn.onclick = () => {
+          logLines = [];
+          if (isLogOpen && dom.logBody) dom.logBody.textContent = "";
+        };
+
+        let toastTimer = null;
+        function showToast(msg) {
+          dom.toast.textContent = msg;
+          dom.toast.classList.add("show");
+          clearTimeout(toastTimer);
+          toastTimer = setTimeout(() => dom.toast.classList.remove("show"), TOAST_MS);
+        }
+
+        function b64ToUtf8(b64) {
+          try {
+            const bin = window.atob(b64);
+            if (window.TextDecoder) {
+              const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+              return new TextDecoder("utf-8").decode(bytes);
+            }
+            return decodeURIComponent(escape(bin));
+          } catch (e) {
+            return "";
+          }
+        }
+
+        window.__LEGADO_RUNTIME_ERROR_HANDLER = function (kind, e) {
+          const unknown = "发生未知错误";
+          let msg = unknown;
+          let stack = "";
+
+          if (kind === "promise") {
+            const r = e && e.reason != null ? e.reason : unknown;
+            msg = typeof r === "string" ? r : r && r.message ? r.message : String(r);
+            stack = r && r.stack ? String(r.stack) : "";
+          } else {
+            msg = e && e.message ? e.message : unknown;
+            stack = e && e.error && e.error.stack ? String(e.error.stack) : "";
+          }
+
+          appendLog(kind, msg + (stack ? "\n" + stack : ""));
+          showToast("发生错误：" + msg);
+        };
+
+        window.setCodeFromAndroid = function (b64) {
+          resetDoc(b64ToUtf8(b64));
+        };
+
+        window.__save = function () {
+          const val = getCode();
+          if (window.Android && window.Android.save) window.Android.save(val);
+          else console.log("Mock Save:", val);
+        };
+
+        window.__getCode = function () {
+          return getCode();
+        };
+
+        if (window.visualViewport) {
+          const syncViewport = () => {
+            const h = window.visualViewport.height;
+            document.documentElement.style.height = h + "px";
+            document.body.style.height = h + "px";
+            if (fontSize === "auto") applyFontSize("auto");
+          };
+          const vvSync = debounce(syncViewport, 50);
+          window.visualViewport.addEventListener("resize", vvSync);
+          window.visualViewport.addEventListener("scroll", vvSync);
+          syncViewport();
+        }
+
+        window.addEventListener("resize", () => {
+          if (fontSize === "auto") applyFontSize("auto");
+        });
+        const __err = console.error.bind(console);
+        console.error = function (...args) {
+          const safe = args.map(a => {
+            if (typeof a === "string") return a;
+            try { return JSON.stringify(a); } catch (e) { return String(a); }
+          }).join(" ");
+          appendLog("error", safe);
+          __err(...args);
+        };
       } catch (e) {
         const msg = e && e.message ? e.message : e;
         if (window.__LEGADO_BOOT_ERROR) {
@@ -1249,23 +1292,5 @@
     })();
   </script>
 </body>
+
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
