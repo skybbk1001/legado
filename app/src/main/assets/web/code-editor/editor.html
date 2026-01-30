@@ -516,6 +516,7 @@
             if (!raw) return;
             const data = JSON.parse(raw);
             if (data && typeof data === "object") {
+              if (typeof data.isWrap === "boolean") isWrap = data.isWrap;
               if (typeof data.wrapElements === "boolean") wrapElements = data.wrapElements;
               if (data.tabSize != null) tabSize = parseInt(data.tabSize, 10) || tabSize;
               if (data.fontSize != null) fontSize = String(data.fontSize);
@@ -531,6 +532,7 @@
           try {
             if (!window.localStorage) return;
             const data = {
+              isWrap,
               wrapElements,
               tabSize,
               fontSize,
@@ -1111,6 +1113,7 @@
           isWrap = !isWrap;
           view.dispatch({ effects: wrapComp.reconfigure(isWrap ? EditorView.lineWrapping : []) });
           wrapBtn.classList.toggle("active", isWrap);
+          saveSettings();
           showToast("自动换行: " + (isWrap ? "开" : "关"));
         };
         const formatOptionsBtn = dom.formatOptionsBtn;
