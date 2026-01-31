@@ -287,6 +287,27 @@ function NormalizeEntry($data) {
   return $data
 }
 
+$DeprecatedJavaMethods = @(
+  "aesBase64DecodeToByteArray",
+  "aesBase64DecodeToString",
+  "aesDecodeArgsBase64Str",
+  "aesDecodeToByteArray",
+  "aesDecodeToString",
+  "aesEncodeArgsBase64Str",
+  "aesEncodeToBase64ByteArray",
+  "aesEncodeToBase64String",
+  "aesEncodeToByteArray",
+  "aesEncodeToString",
+  "desBase64DecodeToString",
+  "desDecodeToString",
+  "desEncodeToBase64String",
+  "desEncodeToString",
+  "tripleDESDecodeArgsBase64Str",
+  "tripleDESDecodeStr",
+  "tripleDESEncodeArgsBase64Str",
+  "tripleDESEncodeBase64Str"
+)
+
 $root = $ProjectRoot
 $paths = @{
   encode = Join-Path $root "app/src/main/java/io/legado/app/help/JsEncodeUtils.kt"
@@ -362,6 +383,8 @@ $cache = ConvertIsPropsToMethods $cache
 $book = ConvertIsPropsToMethods $book
 $chapter = ConvertIsPropsToMethods $chapter
 
+$java.methods = @($java.methods | Where-Object { $DeprecatedJavaMethods -notcontains $_ })
+
 $java = NormalizeEntry $java
 $source = NormalizeEntry $source
 $cookie = NormalizeEntry $cookie
@@ -380,16 +403,10 @@ $custom = [ordered]@{
 
 $json = $custom | ConvertTo-Json -Depth 6
 $json = [regex]::Replace($json, "\[\s*\r?\n\s*\r?\n\s*\]", "[]")
-$lines = $json -split "`n"
-$indented = @()
-for ($i = 0; $i -lt $lines.Length; $i++) {
-  if ($i -eq 0) {
-    $indented += ("      const CUSTOM_COMPLETIONS = " + $lines[$i])
-  } else {
-    $indented += ("      " + $lines[$i])
-  }
-}
-$block = "// <AUTO_COMPLETIONS>" + "`n" + ($indented -join "`n") + ";" + "`n" + "      // </AUTO_COMPLETIONS>"
+$completionsPath = Join-Path $root "app/src/main/assets/web/code-editor/completions.json"
+Set-Content -LiteralPath $completionsPath -Value $json
+
+$block = "// <AUTO_COMPLETIONS>`n        let CUSTOM_COMPLETIONS = null;`n        // </AUTO_COMPLETIONS>"
 
 $editorPath = Join-Path $root "app/src/main/assets/web/code-editor/editor.html"
 $editorText = Get-Content -Raw -LiteralPath $editorPath

@@ -3,10 +3,11 @@
 
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, interactive-widget=resizes-content" />
   <title>Legado Editor Pro</title>
   <style>
-    body {
+    :root {
       --bg: #ffffff;
       --gutter-bg: #f5f5f5;
       --gutter-text: #b0b0b0;
@@ -421,14 +422,6 @@
         const SETTINGS_KEY = "legado.codeEditor.formatSettings";
         const TOAST_MS = 1500;
 
-        function debounce(fn, wait) {
-          let t;
-          return function (...args) {
-            clearTimeout(t);
-            t = setTimeout(() => fn.apply(this, args), wait);
-          };
-        }
-
         const dom = {
           editorHost: $("editor"),
           toast: $("toast"),
@@ -494,7 +487,7 @@
         let singleQuote = false;
         let trailingComma = true;
         let themeMode = "auto";
-
+        const MAX_INDENT_MULT = 4;
         let logLines = [];
         let isLogOpen = false;
 
@@ -525,7 +518,9 @@
               if (typeof data.trailingComma === "boolean") trailingComma = data.trailingComma;
               if (typeof data.themeMode === "string") themeMode = data.themeMode;
             }
-          } catch (e) { }
+          } catch (e) {
+            appendLog("error", "设置读取失败: " + (e && e.message ? e.message : e));
+          }
         }
 
         function saveSettings() {
@@ -542,7 +537,9 @@
               themeMode
             };
             window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(data));
-          } catch (e) { }
+          } catch (e) {
+            appendLog("error", "设置保存失败: " + (e && e.message ? e.message : e));
+          }
         }
 
         const wrapComp = new Compartment();
@@ -567,13 +564,8 @@
             ".cm-scroller": {
               fontFamily: "inherit",
               fontSize: px + "px",
-              lineHeight: "1.5",
-              overflow: "auto",
-
-              "scroll-behavior": "auto",
-              "-webkit-overflow-scrolling": "touch"
+              lineHeight: "1.5"
             },
-            ".cm-content": { padding: "10px" },
             ".cm-gutters": { fontSize: px + "px" }
           });
         }
@@ -586,8 +578,16 @@
               color: "var(--text)"
             },
             ".cm-scroller": {
-                "scroll-padding-top": "50px",
-                "scroll-padding-bottom": "50px"
+              overflow: "auto",
+              "scroll-behavior": "auto",
+              "-webkit-overflow-scrolling": "touch",
+              "scroll-padding-top": "50px",
+              "scroll-padding-bottom": "50px"
+            },
+            ".cm-content": {
+              padding: "10px",
+              maxWidth: "100%",
+              overflowWrap: "anywhere"
             },
             ".cm-gutters": {
               backgroundColor: "var(--gutter-bg)",
@@ -633,291 +633,60 @@
           return true;
         }
 
-        // <AUTO_COMPLETIONS>
-        const CUSTOM_COMPLETIONS = {
-          "java": {
-            "props": [
-
-            ],
-            "methods": [
-              "ajax",
-              "ajaxAll",
-              "androidId()",
-              "base64Decode",
-              "base64DecodeToByteArray",
-              "base64Encode",
-              "bytesToStr",
-              "cacheFile",
-              "connect",
-              "createAsymmetricCrypto",
-              "createSign",
-              "createSymmetricCrypto",
-              "deleteFile",
-              "digestBase64Str",
-              "digestHex",
-              "downloadFile",
-              "encodeURI",
-              "get",
-              "get7zByteArrayContent",
-              "get7zStringContent",
-              "getCookie",
-              "getFile",
-              "getRarByteArrayContent",
-              "getRarStringContent",
-              "getSource()",
-              "getTxtInFolder",
-              "getVerificationCode",
-              "getWebViewUA()",
-              "getZipByteArrayContent",
-              "getZipStringContent",
-              "head",
-              "hexDecodeToByteArray",
-              "hexDecodeToString",
-              "hexEncodeToString",
-              "HMacBase64",
-              "HMacHex",
-              "htmlFormat",
-              "importScript",
-              "log",
-              "logType",
-              "longToast",
-              "md5Encode",
-              "md5Encode16",
-              "openUrl",
-              "post",
-              "queryBase64TTF",
-              "queryTTF",
-              "randomUUID()",
-              "readFile",
-              "readTxtFile",
-              "replaceFont",
-              "s2t",
-              "startBrowser",
-              "startBrowserAwait",
-              "strToBytes",
-              "t2s",
-              "timeFormat",
-              "timeFormatUTC",
-              "toast",
-              "toNumChapter",
-              "toURL",
-              "un7zFile",
-              "unArchiveFile",
-              "unrarFile",
-              "unzipFile",
-              "webView",
-              "webViewGetOverrideUrl",
-              "webViewGetSource"
-            ]
-          },
-          "source": {
-            "props": [
-              "concurrentRate",
-              "enabledCookieJar",
-              "header",
-              "jsLib",
-              "loginUrl"
-            ],
-            "methods": [
-              "evalJS",
-              "get",
-              "getHeaderMap",
-              "getKey()",
-              "getLoginHeader()",
-              "getLoginHeaderMap()",
-              "getLoginInfo()",
-              "getLoginInfoMap()",
-              "getLoginJs()",
-              "getSource()",
-              "getTag()",
-              "getVariable()",
-              "login()",
-              "loginUi()",
-              "put",
-              "putLoginHeader",
-              "putLoginInfo",
-              "removeLoginHeader()",
-              "removeLoginInfo()",
-              "setVariable"
-            ]
-          },
-          "cookie": {
-            "props": [
-
-            ],
-            "methods": [
-              "clear()",
-              "cookieToMap",
-              "getCookie",
-              "getKey",
-              "mapToCookie",
-              "removeCookie",
-              "replaceCookie",
-              "setCookie"
-            ]
-          },
-          "cache": {
-            "props": [
-
-            ],
-            "methods": [
-              "delete",
-              "deleteMemory",
-              "get",
-              "getByteArray",
-              "getDouble",
-              "getFile",
-              "getFloat",
-              "getFromMemory",
-              "getInt",
-              "getLong",
-              "put",
-              "putFile",
-              "putMemory"
-            ]
-          },
-          "book": {
-            "props": [
-              "author",
-              "bookUrl",
-              "canUpdate",
-              "charset",
-              "config",
-              "coverUrl",
-              "customCoverUrl",
-              "customIntro",
-              "customTag",
-              "dailyChapters",
-              "delTag",
-              "downloadUrls",
-              "durChapterIndex",
-              "durChapterPos",
-              "durChapterTime",
-              "durChapterTitle",
-              "group",
-              "imageStyle",
-              "infoHtml",
-              "intro",
-              "kind",
-              "lastChapterIndex",
-              "lastCheckCount",
-              "lastCheckTime",
-              "latestChapterTime",
-              "latestChapterTitle",
-              "name",
-              "order",
-              "origin",
-              "originName",
-              "originOrder",
-              "pageAnim",
-              "readConfig",
-              "readSimulating",
-              "reSegment",
-              "reverseToc",
-              "splitLongChapter",
-              "startChapter",
-              "startDate",
-              "syncTime",
-              "tocHtml",
-              "tocUrl",
-              "totalChapterNum",
-              "ttsEngine",
-              "type",
-              "useReplaceRule",
-              "variable",
-              "variableMap",
-              "wordCount"
-            ],
-            "methods": [
-              "addDelTag",
-              "createBookMark()",
-              "delete()",
-              "equals",
-              "fileCharset()",
-              "getBigVariable",
-              "getCustomVariable()",
-              "getDailyChapters()",
-              "getDelTag",
-              "getDisplayCover()",
-              "getDisplayIntro()",
-              "getFolderName()",
-              "getImageStyle()",
-              "getKindList()",
-              "getPageAnim()",
-              "getReadSimulating()",
-              "getRealAuthor()",
-              "getReSegment()",
-              "getReverseToc()",
-              "getSplitLongChapter()",
-              "getStartChapter()",
-              "getStartDate()",
-              "getTtsEngine()",
-              "getUnreadChapterNum()",
-              "getUseReplaceRule()",
-              "hashCode()",
-              "migrateTo",
-              "putBigVariable",
-              "putCustomVariable",
-              "putVariable",
-              "removeDelTag",
-              "save()",
-              "setDailyChapters",
-              "setImageStyle",
-              "setPageAnim",
-              "setReadSimulating",
-              "setReSegment",
-              "setReverseToc",
-              "setSplitLongChapter",
-              "setStartChapter",
-              "setStartDate",
-              "setTtsEngine",
-              "setUseReplaceRule",
-              "toSearchBook()",
-              "upCustomIntro()"
-            ]
-          },
-          "chapter": {
-            "props": [
-              "baseUrl",
-              "bookUrl",
-              "end",
-              "endFragmentId",
-              "index",
-              "resourceUrl",
-              "start",
-              "startFragmentId",
-              "tag",
-              "title",
-              "titleMD5",
-              "url",
-              "variable",
-              "variableMap",
-              "wordCount"
-            ],
-            "methods": [
-              "ensureTitleMD5Init()",
-              "equals",
-              "getAbsoluteURL()",
-              "getBigVariable",
-              "getDisplayTitle",
-              "getFileName",
-              "getFontName()",
-              "hashCode()",
-              "isPay()",
-              "isVip()",
-              "isVolume()",
-              "primaryStr()",
-              "putBigVariable",
-              "putVariable"
-            ]
+        function insertNewlineClamped(view) {
+          const { state } = view;
+          const { from, to, head } = state.selection.main;
+          const line = state.doc.lineAt(head);
+          let baseIndent = (line.text.match(/^\s*/) || [""])[0];
+          const maxIndent = " ".repeat(tabSize * MAX_INDENT_MULT);
+          if (baseIndent.length > maxIndent.length) {
+            baseIndent = maxIndent;
           }
-        };
-        // </AUTO_COMPLETIONS>
+          const insert = "\n" + baseIndent;
+          const cursor = from + insert.length;
+          view.dispatch({
+            changes: { from, to, insert },
+            selection: { anchor: cursor, head: cursor },
+            effects: EditorView.scrollIntoView(cursor, { y: "nearest" })
+          });
+          requestAnimationFrame(() => {
+            const pos = view.state.selection.main.head;
+            view.dispatch({ effects: EditorView.scrollIntoView(pos, { y: "nearest" }) });
+          });
+          return true;
+        }
 
-        const COMPLETION_KEYS = Object.keys(CUSTOM_COMPLETIONS);
-        const COMPLETION_REGEX = new RegExp(`^(${COMPLETION_KEYS.join("|")})\\.([\\w]*)$`);
+        let CUSTOM_COMPLETIONS = null;
+        let completionsPromise = null;
+        let completionRegex = null;
+
+        function loadCompletions() {
+          if (CUSTOM_COMPLETIONS) return Promise.resolve(CUSTOM_COMPLETIONS);
+          if (completionsPromise) return completionsPromise;
+          completionsPromise = fetch("completions.json")
+            .then((res) => res.ok ? res.json() : {})
+            .then((data) => {
+              CUSTOM_COMPLETIONS = data || {};
+              const keys = Object.keys(CUSTOM_COMPLETIONS);
+              completionRegex = keys.length
+                ? new RegExp(`^(${keys.join("|")})\\.([\\w]*)$`)
+                : null;
+              return CUSTOM_COMPLETIONS;
+            })
+            .catch((e) => {
+              appendLog("error", "补全数据加载失败: " + (e && e.message ? e.message : e));
+              CUSTOM_COMPLETIONS = {};
+              completionRegex = null;
+              return CUSTOM_COMPLETIONS;
+            });
+          return completionsPromise;
+        }
 
         function customCompletion(context) {
+          if (!CUSTOM_COMPLETIONS) {
+            loadCompletions();
+            return null;
+          }
           if (!context.explicit) {
             const prev = context.pos > 0 ? context.state.sliceDoc(context.pos - 1, context.pos) : "";
             if (prev.trim() === "") return null;
@@ -925,7 +694,8 @@
           const word = context.matchBefore(/[\w$.]+$/);
           if (!word) return null;
           if (!context.explicit && word.from === word.to) return null;
-          const m = word.text.match(COMPLETION_REGEX);
+          if (!completionRegex) return null;
+          const m = word.text.match(completionRegex);
           if (!m) return null;
           const base = m[1];
           const prefix = m[2] || "";
@@ -969,9 +739,7 @@
         }
         function buildExtensions() {
           const tabKey = { key: "Tab", run: insertTab, shift: indentLess || undefined };
-          const enterKey = insertNewlineAndIndent
-            ? { key: "Enter", run: insertNewlineAndIndent }
-            : null;
+          const enterKey = { key: "Enter", run: insertNewlineClamped };
           const closeKeymap = Array.isArray(closeBracketsKeymap)
             ? closeBracketsKeymap
             : (closeBracketsKeymap ? [closeBracketsKeymap] : []);
@@ -1014,12 +782,21 @@
             state: EditorState.create({ doc: "", extensions: buildExtensions() }),
             parent: dom.editorHost
           });
+          applyTabSize(tabSize);
+          applyFontSize(fontSize);
+          applyTheme(themeMode);
         } catch (e) {
           appendLog("error", e && e.message ? e.message : e);
           bootError("编辑器初始化失败: " + (e && e.message ? e.message : e));
           return;
         }
         window.__LEGADO_EDITOR_BOOTED = true;
+
+        if (typeof requestIdleCallback === "function") {
+          requestIdleCallback(() => loadCompletions(), { timeout: 1500 });
+        } else {
+          setTimeout(() => loadCompletions(), 800);
+        }
 
         const syncAutoTheme = () => {
           if (themeMode !== "auto") return;
@@ -1060,14 +837,23 @@
           return null;
         }
 
+        let prettierPluginsCache = null;
+        function getPrettierPlugins() {
+          if (prettierPluginsCache) return prettierPluginsCache;
+          if (!window.prettierPlugins) return null;
+          const list = [];
+          if (window.prettierPlugins.babel) list.push(window.prettierPlugins.babel);
+          if (window.prettierPlugins.estree) list.push(window.prettierPlugins.estree);
+          prettierPluginsCache = list.length ? list : null;
+          return prettierPluginsCache;
+        }
+
         async function formatWithPrettier(codeText, parser) {
           if (!window.prettier || !window.prettierPlugins) {
             throw new Error("Prettier 未加载");
           }
-          const plugins = [];
-          if (window.prettierPlugins.babel) plugins.push(window.prettierPlugins.babel);
-          if (window.prettierPlugins.estree) plugins.push(window.prettierPlugins.estree);
-          if (!plugins.length) {
+          const plugins = getPrettierPlugins();
+          if (!plugins || !plugins.length) {
             throw new Error("Prettier 插件未加载");
           }
           const width = wrapElements ? printWidth : Math.max(printWidth, 99999);
@@ -1137,10 +923,6 @@
         themeSelect.value = String(themeMode);
         singleQuoteToggle.checked = singleQuote;
         trailingCommaToggle.checked = trailingComma;
-
-        applyTabSize(tabSize);
-        applyFontSize(fontSize);
-        applyTheme(themeMode);
 
         wrapElementsToggle.addEventListener("change", () => {
           wrapElements = wrapElementsToggle.checked;
@@ -1270,22 +1052,6 @@
         window.__getCode = function () {
           return getCode();
         };
-
-        if (window.visualViewport) {
-          const syncViewport = () => {
-            const h = window.visualViewport.height;
-            const offsetTop = window.visualViewport.offsetTop;
-            document.documentElement.style.height = h + "px";
-            document.body.style.height = h + "px";
-
-            if (offsetTop > 0) {
-               window.scrollTo(0, 0);
-            }
-          };
-          const vvSync = debounce(syncViewport, 50);
-          window.visualViewport.addEventListener("resize", vvSync);
-          syncViewport();
-        }
 
         window.addEventListener("resize", () => {
           if (fontSize === "auto") applyFontSize("auto");
