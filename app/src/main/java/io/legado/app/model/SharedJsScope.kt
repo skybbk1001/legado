@@ -12,8 +12,8 @@ import io.legado.app.utils.GSON
 import io.legado.app.utils.MD5Utils
 import io.legado.app.utils.isAbsUrl
 import io.legado.app.utils.isJsonObject
-import io.legado.app.utils.AppLog
-import io.legado.app.utils.Debug
+import io.legado.app.constant.AppLog
+import io.legado.app.model.Debug
 import kotlinx.coroutines.runBlocking
 import org.mozilla.javascript.Scriptable
 import org.mozilla.javascript.ScriptableObject
