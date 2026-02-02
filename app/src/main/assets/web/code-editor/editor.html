@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 
 <head>
   <meta charset="utf-8" />
   <meta name="viewport"
-    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, interactive-widget=resizes-content" />
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Legado Editor Pro</title>
   <style>
     :root {
@@ -91,7 +91,7 @@
     }
 
     body {
-      font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+      font-family: "Menlo", "Monaco", "Courier New", monospace;
       background: var(--bg);
       color: var(--text);
       display: flex;
@@ -275,6 +275,65 @@
       overflow: auto;
       flex: 1;
     }
+
+    #curl-panel {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      top: 44px;
+      max-height: 60%;
+      display: none;
+      flex-direction: column;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+      z-index: 45;
+      overflow: hidden;
+    }
+    #curl-panel.show {
+      display: flex;
+    }
+    #curl-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--border);
+      background: var(--toolbar-bg);
+      font-size: 12px;
+    }
+    #curl-header .spacer {
+      flex: 1;
+    }
+    #curl-header select {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 12px;
+    }
+    #curl-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      padding: 8px;
+      overflow: auto;
+      flex: 1;
+    }
+    .curl-text {
+      min-height: 120px;
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px;
+      font-size: 12px;
+      line-height: 1.4;
+      background: var(--bg);
+      color: var(--text);
+      resize: none;
+    }
   </style>
 </head>
 
@@ -284,8 +343,11 @@
     <button id="redoBtn" class="btn">重做</button>
     <button id="wrapBtn" class="btn">换行</button>
     <button id="formatBtn" class="btn">格式化</button>
-    <button id="formatOptionsBtn" class="btn btn-icon" title="格式化选项">▾</button>
+    <button id="formatOptionsBtn" class="btn btn-icon" title="格式化选项">
+      ▾
+    </button>
     <button id="searchToggleBtn" class="btn">🔍</button>
+    <button id="curlToggleBtn" class="btn">curl</button>
     <button id="logToggleBtn" class="btn">日志</button>
   </div>
 
@@ -343,10 +405,30 @@
     <div id="log-header">
       <span>日志</span>
       <span class="spacer"></span>
+      <button id="logCopyBtn" class="btn btn-icon">复制</button>
       <button id="logClearBtn" class="btn btn-icon">清空</button>
       <button id="logCloseBtn" class="btn btn-icon">×</button>
     </div>
     <pre id="log-body"></pre>
+  </div>
+
+  <div id="curl-panel">
+    <div id="curl-header">
+      <span>curl</span>
+      <select id="curlModeSelect">
+        <option value="curl-to-analyze">curl → AnalyzeUrl</option>
+        <option value="analyze-to-curl">AnalyzeUrl → curl</option>
+      </select>
+      <span class="spacer"></span>
+      <button id="curlConvertBtn" class="btn btn-icon">转换</button>
+      <button id="curlCopyBtn" class="btn btn-icon">复制</button>
+      <button id="curlClearBtn" class="btn btn-icon">清空</button>
+      <button id="curlCloseBtn" class="btn btn-icon">×</button>
+    </div>
+    <div id="curl-body">
+      <textarea id="curl-input" class="curl-text" placeholder="粘贴 curl 或 AnalyzeUrl"></textarea>
+      <textarea id="curl-output" class="curl-text" placeholder="转换结果" readonly></textarea>
+    </div>
   </div>
 
   <div id="editor-container">
@@ -383,7 +465,12 @@
         }
         var msg = "发生未知错误";
         if (kind === "promise") {
-          msg = e && e.reason != null ? String(e.reason && e.reason.message ? e.reason.message : e.reason) : msg;
+          msg =
+            e && e.reason != null
+              ? String(
+                e.reason && e.reason.message ? e.reason.message : e.reason,
+              )
+              : msg;
         } else {
           msg = e && e.message ? e.message : msg;
         }
@@ -402,16 +489,22 @@
   <script src="standalone.min.js"></script>
   <script src="babel.js"></script>
   <script src="estree.js"></script>
-  <script src="codemirror.bundle.js"
-    onerror="window.__LEGADO_BOOT_ERROR && window.__LEGADO_BOOT_ERROR('codemirror.bundle.js 加载失败')"></script>
-  <script src="completions.js"
-    onerror="window.__LEGADO_BOOT_ERROR && window.__LEGADO_BOOT_ERROR('completions.js 加载失败')"></script>
+  <script src="codemirror.bundle.js" onerror="
+        window.__LEGADO_BOOT_ERROR &&
+          window.__LEGADO_BOOT_ERROR('codemirror.bundle.js 加载失败')
+      "></script>
+  <script src="completions.js" onerror="
+        window.__LEGADO_BOOT_ERROR &&
+          window.__LEGADO_BOOT_ERROR('completions.js 加载失败')
+      "></script>
   <script>
     // 早期兜底：如果主脚本未执行，显示提示
     window.setTimeout(function () {
       if (window.__LEGADO_EDITOR_BOOTED) return;
       if (window.__LEGADO_BOOT_ERROR) {
-        window.__LEGADO_BOOT_ERROR("编辑器脚本未执行，请确认 codemirror.bundle.js 已更新并重新安装 APK。");
+        window.__LEGADO_BOOT_ERROR(
+          "编辑器脚本未执行，请确认 codemirror.bundle.js 已更新并重新安装 APK。",
+        );
       }
     }, 1200);
   </script>
@@ -423,21 +516,32 @@
         const LOG_MAX = 200;
         const SETTINGS_KEY = "legado.codeEditor.formatSettings";
         const TOAST_MS = 1500;
+        const LONG_LINE_SCROLL_LIMIT = 2000;
 
         const dom = {
           editorHost: $("editor"),
           toast: $("toast"),
           logPanel: $("log-panel"),
           logBody: $("log-body"),
+          curlPanel: $("curl-panel"),
+          curlInput: $("curl-input"),
+          curlOutput: $("curl-output"),
+          curlModeSelect: $("curlModeSelect"),
           undoBtn: $("undoBtn"),
           redoBtn: $("redoBtn"),
           wrapBtn: $("wrapBtn"),
           formatBtn: $("formatBtn"),
           formatOptionsBtn: $("formatOptionsBtn"),
           searchToggleBtn: $("searchToggleBtn"),
+          curlToggleBtn: $("curlToggleBtn"),
           logToggleBtn: $("logToggleBtn"),
           logCloseBtn: $("logCloseBtn"),
+          logCopyBtn: $("logCopyBtn"),
           logClearBtn: $("logClearBtn"),
+          curlConvertBtn: $("curlConvertBtn"),
+          curlCopyBtn: $("curlCopyBtn"),
+          curlClearBtn: $("curlClearBtn"),
+          curlCloseBtn: $("curlCloseBtn"),
           wrapElementsToggle: $("wrapElementsToggle"),
           indentSizeSelect: $("indentSizeSelect"),
           fontSizeSelect: $("fontSizeSelect"),
@@ -445,12 +549,14 @@
           themeSelect: $("themeSelect"),
           singleQuoteToggle: $("singleQuoteToggle"),
           trailingCommaToggle: $("trailingCommaToggle"),
-          formatOptions: $("format-options")
+          formatOptions: $("format-options"),
         };
 
         const CM = window.CodeMirrorBundle;
         if (!CM || !CM.EditorView) {
-          bootError("CodeMirror 未加载，请确认 codemirror.bundle.js 已打包并可访问");
+          bootError(
+            "CodeMirror 未加载，请确认 codemirror.bundle.js 已打包并可访问",
+          );
           return;
         }
 
@@ -473,12 +579,12 @@
           highlightSelectionMatches,
           openSearchPanel,
           autocompletion,
+          closeCompletion,
           closeBrackets,
           closeBracketsKeymap,
           javascript,
           indentMore,
           indentLess,
-          insertNewlineAndIndent
         } = CM;
 
         let isWrap = false;
@@ -489,12 +595,15 @@
         let singleQuote = false;
         let trailingComma = true;
         let themeMode = "auto";
-        const MAX_INDENT_MULT = 4;
         let logLines = [];
         let isLogOpen = false;
+        let lastAppliedPixelSize = 0;
 
         function appendLog(level, msg) {
-          const time = new Date().toISOString().replace("T", " ").replace("Z", "");
+          const time = new Date()
+            .toISOString()
+            .replace("T", " ")
+            .replace("Z", "");
           const text = String(msg == null ? "" : msg);
           const line = `[${time}] ${level}: ${text.length > 1000 ? text.slice(0, 1000) + "…" : text}`;
           logLines.push(line);
@@ -507,21 +616,32 @@
 
         function loadSettings() {
           try {
-            const raw = window.localStorage ? window.localStorage.getItem(SETTINGS_KEY) : null;
+            const raw = window.localStorage
+              ? window.localStorage.getItem(SETTINGS_KEY)
+              : null;
             if (!raw) return;
             const data = JSON.parse(raw);
             if (data && typeof data === "object") {
               if (typeof data.isWrap === "boolean") isWrap = data.isWrap;
-              if (typeof data.wrapElements === "boolean") wrapElements = data.wrapElements;
-              if (data.tabSize != null) tabSize = parseInt(data.tabSize, 10) || tabSize;
+              if (typeof data.wrapElements === "boolean")
+                wrapElements = data.wrapElements;
+              if (data.tabSize != null)
+                tabSize = parseInt(data.tabSize, 10) || tabSize;
               if (data.fontSize != null) fontSize = String(data.fontSize);
-              if (data.printWidth != null) printWidth = parseInt(data.printWidth, 10) || printWidth;
-              if (typeof data.singleQuote === "boolean") singleQuote = data.singleQuote;
-              if (typeof data.trailingComma === "boolean") trailingComma = data.trailingComma;
-              if (typeof data.themeMode === "string") themeMode = data.themeMode;
+              if (data.printWidth != null)
+                printWidth = parseInt(data.printWidth, 10) || printWidth;
+              if (typeof data.singleQuote === "boolean")
+                singleQuote = data.singleQuote;
+              if (typeof data.trailingComma === "boolean")
+                trailingComma = data.trailingComma;
+              if (typeof data.themeMode === "string")
+                themeMode = data.themeMode;
             }
           } catch (e) {
-            appendLog("error", "设置读取失败: " + (e && e.message ? e.message : e));
+            appendLog(
+              "error",
+              "设置读取失败: " + (e && e.message ? e.message : e),
+            );
           }
         }
 
@@ -536,11 +656,14 @@
               printWidth,
               singleQuote,
               trailingComma,
-              themeMode
+              themeMode,
             };
             window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(data));
           } catch (e) {
-            appendLog("error", "设置保存失败: " + (e && e.message ? e.message : e));
+            appendLog(
+              "error",
+              "设置保存失败: " + (e && e.message ? e.message : e),
+            );
           }
         }
 
@@ -548,7 +671,9 @@
         const themeComp = new Compartment();
         const fontComp = new Compartment();
         const indentComp = new Compartment();
-        const mediaDark = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+        const mediaDark = window.matchMedia
+          ? window.matchMedia("(prefers-color-scheme: dark)")
+          : null;
 
         function isDarkTheme() {
           if (themeMode === "auto") return !!(mediaDark && mediaDark.matches);
@@ -556,49 +681,58 @@
         }
 
         function getSystemFontSize() {
-          const size = parseFloat(window.getComputedStyle(document.body).fontSize);
+          const size = parseFloat(
+            window.getComputedStyle(document.body).fontSize,
+          );
           return isNaN(size) ? 13 : size;
         }
 
         function makeFontTheme() {
-          const px = fontSize === "auto" ? getSystemFontSize() : (parseInt(fontSize, 10) || 13);
+          const px =
+            fontSize === "auto"
+              ? getSystemFontSize()
+              : parseInt(fontSize, 10) || 13;
           return EditorView.theme({
             ".cm-scroller": {
-              fontFamily: "inherit",
               fontSize: px + "px",
-              lineHeight: "1.5"
             },
-            ".cm-gutters": { fontSize: px + "px" }
+            ".cm-gutters": { fontSize: px + "px" },
           });
         }
 
         function makeTheme() {
-          return EditorView.theme({
-            "&": {
-              height: "100%",
-              backgroundColor: "var(--bg)",
-              color: "var(--text)"
+          return EditorView.theme(
+            {
+              "&": {
+                height: "100%",
+                backgroundColor: "var(--bg)",
+                color: "var(--text)",
+                "-webkit-tap-highlight-color": "transparent",
+              },
+              ".cm-scroller": {
+                fontFamily: "inherit",
+                lineHeight: "1.5",
+                overflow: "auto",
+                "-webkit-overflow-scrolling": "touch",
+                overflowAnchor: "none",
+              },
+              ".cm-content": {
+                padding: "10px",
+                maxWidth: "100%",
+                overflowWrap: "anywhere",
+              },
+              ".cm-gutters": {
+                backgroundColor: "var(--gutter-bg)",
+                color: "var(--gutter-text)",
+                borderRight: "1px solid var(--border)",
+              },
+              ".cm-activeLine": { backgroundColor: "var(--active-line)" },
+              ".cm-selectionBackground": {
+                backgroundColor: "var(--selection)",
+              },
             },
-            ".cm-scroller": {
-              overflow: "auto",
-              "scroll-behavior": "auto",
-              "-webkit-overflow-scrolling": "touch",
-              "scroll-padding-top": "50px",
-              "scroll-padding-bottom": "50px"
-            },
-            ".cm-content": {
-              padding: "10px",
-              maxWidth: "100%",
-              overflowWrap: "anywhere"
-            },
-            ".cm-gutters": {
-              backgroundColor: "var(--gutter-bg)",
-              color: "var(--gutter-text)",
-              borderRight: "1px solid var(--border)"
-            },
-            ".cm-activeLine": { backgroundColor: "var(--active-line)" },
-            ".cm-selectionBackground": { backgroundColor: "var(--selection)" }
-          }, { dark: isDarkTheme() });
+            { dark: isDarkTheme() },
+          );
         }
 
         function applyTheme(mode) {
@@ -616,12 +750,21 @@
         function applyTabSize(size) {
           tabSize = size;
           if (view) {
-            view.dispatch({ effects: indentComp.reconfigure(indentUnit.of(" ".repeat(tabSize))) });
+            view.dispatch({
+              effects: indentComp.reconfigure(
+                indentUnit.of(" ".repeat(tabSize)),
+              ),
+            });
           }
         }
 
         function applyFontSize(size) {
           fontSize = size;
+          const px = fontSize === "auto" ? getSystemFontSize() : (parseInt(fontSize, 10) || 13);
+          if (view && Math.abs(px - lastAppliedPixelSize) < 0.1) {
+            return;
+          }
+          lastAppliedPixelSize = px;
           if (view) {
             view.dispatch({ effects: fontComp.reconfigure(makeFontTheme()) });
           }
@@ -640,35 +783,79 @@
           const { from, to, head } = state.selection.main;
           const line = state.doc.lineAt(head);
           let baseIndent = (line.text.match(/^\s*/) || [""])[0];
-          const maxIndent = " ".repeat(tabSize * MAX_INDENT_MULT);
-          if (baseIndent.length > maxIndent.length) {
-            baseIndent = maxIndent;
-          }
           const insert = "\n" + baseIndent;
           const cursor = from + insert.length;
           view.dispatch({
             changes: { from, to, insert },
             selection: { anchor: cursor, head: cursor },
-            effects: EditorView.scrollIntoView(cursor, { y: "nearest" })
+            effects: EditorView.scrollIntoView(cursor, { y: "nearest" }),
           });
-          requestAnimationFrame(() => {
-            const pos = view.state.selection.main.head;
-            view.dispatch({ effects: EditorView.scrollIntoView(pos, { y: "nearest" }) });
+          const target = cursor;
+          const editorView = view;
+          view.requestMeasure({
+            read(view) {
+              const coords = view.coordsAtPos(target);
+              const rect = view.scrollDOM.getBoundingClientRect();
+              return {
+                coords,
+                rect,
+                scrollTop: view.scrollDOM.scrollTop,
+              };
+            },
+            write(view, data) {
+              const lineLen = editorView.state.doc.lineAt(target).length;
+              if (!data || !data.coords) {
+                if (lineLen >= LONG_LINE_SCROLL_LIMIT) {
+                  requestAnimationFrame(() => {
+                    editorView.scrollDOM.scrollTop =
+                      editorView.scrollDOM.scrollHeight;
+                  });
+                } else {
+                  requestAnimationFrame(() => {
+                    editorView.dispatch({
+                      effects: EditorView.scrollIntoView(target, {
+                        y: "nearest",
+                      }),
+                    });
+                  });
+                }
+                return;
+              }
+              const { coords, rect } = data;
+              if (coords.top < rect.top || coords.bottom > rect.bottom) {
+                requestAnimationFrame(() => {
+                  editorView.dispatch({
+                    effects: EditorView.scrollIntoView(target, {
+                      y: "nearest",
+                    }),
+                  });
+                });
+              }
+            },
           });
           return true;
         }
 
-        const CUSTOM_COMPLETIONS = (window.CUSTOM_COMPLETIONS && typeof window.CUSTOM_COMPLETIONS === "object")
-          ? window.CUSTOM_COMPLETIONS
-          : {};
+        
+
+        const CUSTOM_COMPLETIONS =
+          window.CUSTOM_COMPLETIONS &&
+            typeof window.CUSTOM_COMPLETIONS === "object"
+            ? window.CUSTOM_COMPLETIONS
+            : {};
         const completionRegex = (() => {
           const keys = Object.keys(CUSTOM_COMPLETIONS);
-          return keys.length ? new RegExp(`^(${keys.join("|")})\\.([\\w]*)$`) : null;
+          return keys.length
+            ? new RegExp(`^(${keys.join("|")})\\.([\\w]*)$`)
+            : null;
         })();
 
         function customCompletion(context) {
           if (!context.explicit) {
-            const prev = context.pos > 0 ? context.state.sliceDoc(context.pos - 1, context.pos) : "";
+            const prev =
+              context.pos > 0
+                ? context.state.sliceDoc(context.pos - 1, context.pos)
+                : "";
             if (prev.trim() === "") return null;
           }
           const word = context.matchBefore(/[\w$.]+$/);
@@ -679,12 +866,21 @@
           if (!m) return null;
           const base = m[1];
           const prefix = m[2] || "";
-          const entry = CUSTOM_COMPLETIONS[base] || { methods: [], props: [] };
+          const entry = CUSTOM_COMPLETIONS[base] || {
+            methods: [],
+            props: [],
+          };
           const props = (entry.props || [])
-            .filter((label) => typeof label === "string" && label.startsWith(prefix))
+            .filter(
+              (label) =>
+                typeof label === "string" && label.startsWith(prefix),
+            )
             .map((label) => ({ label, type: "property", detail: base }));
           const methods = (entry.methods || [])
-            .filter((label) => typeof label === "string" && label.startsWith(prefix))
+            .filter(
+              (label) =>
+                typeof label === "string" && label.startsWith(prefix),
+            )
             .map((label) => {
               const hasParen = label.endsWith("()");
               const insertText = hasParen ? label : label + "()";
@@ -693,12 +889,14 @@
                 type: "function",
                 detail: base,
                 apply: (view, completion, from, to) => {
-                  const anchor = hasParen ? (from + insertText.length) : (from + insertText.length - 1);
+                  const anchor = hasParen
+                    ? from + insertText.length
+                    : from + insertText.length - 1;
                   view.dispatch({
                     changes: { from, to, insert: insertText },
-                    selection: { anchor, head: anchor }
+                    selection: { anchor, head: anchor },
                   });
-                }
+                },
               };
             });
           const options = props.concat(methods);
@@ -706,23 +904,254 @@
           return {
             from: word.from + base.length + 1,
             options,
-            validFor: /^\w*$/
+            validFor: /^\w*$/,
           };
+        }
+
+        function tokenizeCurl(cmd) {
+          const tokens = [];
+          let cur = "";
+          let quote = "";
+          let i = 0;
+
+          function pushCur() {
+            if (cur) tokens.push(cur);
+            cur = "";
+          }
+
+          while (i < cmd.length) {
+            const ch = cmd[i];
+            if (quote) {
+              if (ch === "\\") {
+                if (i + 1 < cmd.length) {
+                  cur += cmd[i + 1];
+                  i += 2;
+                  continue;
+                }
+              }
+              if (ch === quote) {
+                quote = "";
+                i += 1;
+                continue;
+              }
+              cur += ch;
+              i += 1;
+              continue;
+            }
+
+            if (ch === "'" || ch === "\"") {
+              quote = ch;
+              i += 1;
+              continue;
+            }
+
+            if (/\s/.test(ch)) {
+              pushCur();
+              i += 1;
+              continue;
+            }
+
+            if (ch === "\\" && i + 1 < cmd.length) {
+              cur += cmd[i + 1];
+              i += 2;
+              continue;
+            }
+
+            cur += ch;
+            i += 1;
+          }
+          pushCur();
+          return tokens;
+        }
+
+        function parseCurl(cmd) {
+          const tokens = tokenizeCurl(cmd || "");
+          let method = "";
+          const headers = {};
+          const dataParts = [];
+          let url = "";
+          let cookie = "";
+
+          function takeValue(i) {
+            return i + 1 < tokens.length ? tokens[i + 1] : "";
+          }
+
+          for (let i = 0; i < tokens.length; i += 1) {
+            const t = tokens[i];
+            if (t === "curl") continue;
+
+            if (t === "-X" || t === "--request") {
+              method = takeValue(i).toUpperCase();
+              i += 1;
+              continue;
+            }
+
+            if (t === "-H" || t === "--header") {
+              const h = takeValue(i);
+              i += 1;
+              const idx = h.indexOf(":");
+              if (idx > 0) {
+                headers[h.slice(0, idx).trim()] = h.slice(idx + 1).trim();
+              }
+              continue;
+            }
+
+            if (t.indexOf("-H") === 0 && t.length > 2) {
+              const hv = t.slice(2);
+              const hidx = hv.indexOf(":");
+              if (hidx > 0) {
+                headers[hv.slice(0, hidx).trim()] = hv.slice(hidx + 1).trim();
+              }
+              continue;
+            }
+
+            if (
+              t === "-d" ||
+              t === "--data" ||
+              t === "--data-raw" ||
+              t === "--data-binary" ||
+              t === "--data-urlencode"
+            ) {
+              dataParts.push(takeValue(i));
+              if (!method) method = "POST";
+              i += 1;
+              continue;
+            }
+
+            if (
+              t.indexOf("--data=") === 0 ||
+              t.indexOf("--data-raw=") === 0 ||
+              t.indexOf("--data-binary=") === 0 ||
+              t.indexOf("--data-urlencode=") === 0
+            ) {
+              dataParts.push(t.split("=", 2)[1] || "");
+              if (!method) method = "POST";
+              continue;
+            }
+
+            if (t === "-b" || t === "--cookie") {
+              cookie = takeValue(i);
+              i += 1;
+              continue;
+            }
+
+            if (t.indexOf("--cookie=") === 0) {
+              cookie = t.split("=", 2)[1] || "";
+              continue;
+            }
+
+            if (t.indexOf("http://") === 0 || t.indexOf("https://") === 0) {
+              url = t;
+              continue;
+            }
+
+            if (t[0] !== "-" && !url) {
+              url = t;
+            }
+          }
+
+          if (cookie && !headers.Cookie) {
+            headers.Cookie = cookie;
+          }
+
+          return {
+            url,
+            method,
+            headers,
+            body: dataParts.join("&"),
+          };
+        }
+
+        function shellQuote(value) {
+          const str = String(value == null ? "" : value);
+          if (!/[\s'"\\]/.test(str)) return str;
+          return "'" + str.replace(/'/g, "'\"'\"'") + "'";
+        }
+
+        function curlToAnalyzeUrl(cmd) {
+          const parsed = parseCurl(cmd);
+          if (!parsed.url) {
+            throw new Error("未解析到 URL");
+          }
+          const options = {};
+          const method = parsed.method || "";
+          if (method && (method !== "GET" || parsed.body)) {
+            options.method = method;
+          }
+          if (parsed.body) options.body = parsed.body;
+          if (parsed.headers && Object.keys(parsed.headers).length) {
+            options.headers = parsed.headers;
+          }
+          const hasOptions = Object.keys(options).length > 0;
+          return hasOptions
+            ? `${parsed.url},${JSON.stringify(options)}`
+            : parsed.url;
+        }
+
+        function splitAnalyzeUrl(text) {
+          const raw = String(text || "").trim();
+          if (!raw) return { url: "", options: null };
+          const braceIdx = raw.indexOf("{");
+          if (braceIdx === -1) return { url: raw, options: null };
+          const commaIdx = raw.lastIndexOf(",", braceIdx);
+          if (commaIdx === -1) return { url: raw, options: null };
+          const url = raw.slice(0, commaIdx).trim();
+          const json = raw.slice(commaIdx + 1).trim();
+          return { url, options: json };
+        }
+
+        function analyzeUrlToCurl(text) {
+          const parsed = splitAnalyzeUrl(text);
+          const url = parsed.url;
+          if (!url) throw new Error("未解析到 URL");
+          let options = {};
+          if (parsed.options) {
+            options = JSON.parse(parsed.options);
+          }
+          const method = options.method
+            ? String(options.method).toUpperCase()
+            : "";
+          const headers =
+            options.headers && typeof options.headers === "object"
+              ? options.headers
+              : {};
+          const body = options.body != null ? options.body : "";
+          const parts = ["curl", shellQuote(url)];
+          if (method && method !== "GET") {
+            parts.push("-X", method);
+          }
+          Object.keys(headers).forEach((key) => {
+            parts.push("-H", shellQuote(`${key}: ${headers[key]}`));
+          });
+          if (body !== "") {
+            const payload =
+              typeof body === "string" ? body : JSON.stringify(body);
+            parts.push("--data-raw", shellQuote(payload));
+          }
+          return parts.join(" ");
         }
 
         function buildAutocompleteExtensions() {
           if (!autocompletion) return [];
-          return [autocompletion({
-            activateOnTyping: true,
-            maxRenderedOptions: 200
-          })];
+          return [
+            autocompletion({
+              activateOnTyping: true,
+              maxRenderedOptions: 200,
+            }),
+          ];
         }
         function buildExtensions() {
-          const tabKey = { key: "Tab", run: insertTab, shift: indentLess || undefined };
+          const tabKey = {
+            key: "Tab",
+            run: insertTab,
+            shift: indentLess || undefined,
+          };
           const enterKey = { key: "Enter", run: insertNewlineClamped };
           const closeKeymap = Array.isArray(closeBracketsKeymap)
             ? closeBracketsKeymap
-            : (closeBracketsKeymap ? [closeBracketsKeymap] : []);
+            : closeBracketsKeymap
+              ? [closeBracketsKeymap]
+              : [];
           const exts = [];
           if (typeof history === "function") exts.push(history());
           if (keymap && typeof keymap.of === "function") {
@@ -731,22 +1160,55 @@
             exts.push(keymap.of(km));
           }
           if (typeof lineNumbers === "function") exts.push(lineNumbers());
-          if (typeof highlightActiveLineGutter === "function") exts.push(highlightActiveLineGutter());
+          if (typeof highlightActiveLineGutter === "function")
+            exts.push(highlightActiveLineGutter());
           if (typeof foldGutter === "function") exts.push(foldGutter());
-          if (wrapComp && EditorView && EditorView.lineWrapping) exts.push(wrapComp.of(isWrap ? EditorView.lineWrapping : []));
-          if (indentComp && indentUnit && typeof indentUnit.of === "function") {
+          if (wrapComp && EditorView && EditorView.lineWrapping)
+            exts.push(wrapComp.of(isWrap ? EditorView.lineWrapping : []));
+          if (
+            indentComp &&
+            indentUnit &&
+            typeof indentUnit.of === "function"
+          ) {
             exts.push(indentComp.of(indentUnit.of(" ".repeat(tabSize))));
           }
           if (typeof javascript === "function") exts.push(javascript());
           if (typeof indentOnInput === "function") exts.push(indentOnInput());
           if (typeof closeBrackets === "function") exts.push(closeBrackets());
-          if (typeof bracketMatching === "function") exts.push(bracketMatching());
+          if (typeof bracketMatching === "function")
+            exts.push(bracketMatching());
           if (typeof syntaxHighlighting === "function") {
-            exts.push(syntaxHighlighting(defaultHighlightStyle, { fallback: true }));
+            exts.push(
+              syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+            );
           }
-          if (typeof highlightSelectionMatches === "function") exts.push(highlightSelectionMatches());
-          if (EditorState && EditorState.languageData && typeof EditorState.languageData.of === "function") {
-            exts.push(EditorState.languageData.of((state, pos, side) => [{ autocomplete: customCompletion }]));
+          if (typeof highlightSelectionMatches === "function")
+            exts.push(highlightSelectionMatches());
+          if (typeof closeCompletion === "function") {
+            exts.push(
+              EditorView.updateListener.of((update) => {
+                if (!update.docChanged) return;
+                const isDelete = update.transactions.some(
+                  (t) =>
+                    t.isUserEvent &&
+                    (t.isUserEvent("delete") ||
+                      t.isUserEvent("delete.backward") ||
+                      t.isUserEvent("delete.forward")),
+                );
+                if (isDelete) closeCompletion(update.view);
+              }),
+            );
+          }
+          if (
+            EditorState &&
+            EditorState.languageData &&
+            typeof EditorState.languageData.of === "function"
+          ) {
+            exts.push(
+              EditorState.languageData.of((state, pos, side) => [
+                { autocomplete: customCompletion },
+              ]),
+            );
           }
           exts.push(...buildAutocompleteExtensions());
           if (themeComp) exts.push(themeComp.of(makeTheme()));
@@ -759,8 +1221,28 @@
         let view;
         try {
           view = new EditorView({
-            state: EditorState.create({ doc: "", extensions: buildExtensions() }),
-            parent: dom.editorHost
+            state: EditorState.create({
+              doc: "",
+              extensions: buildExtensions(),
+            }),
+            parent: dom.editorHost,
+          });
+          const focusNoScroll = () => {
+            if (!view || !view.contentDOM) return;
+            if (typeof view.contentDOM.focus !== "function") return;
+            try {
+              view.contentDOM.focus({ preventScroll: true });
+            } catch (e) {
+              view.contentDOM.focus();
+            }
+          };
+          dom.editorHost.addEventListener("pointerdown", focusNoScroll, {
+            capture: true,
+            passive: true,
+          });
+          dom.editorHost.addEventListener("touchstart", focusNoScroll, {
+            capture: true,
+            passive: true,
           });
           applyTabSize(tabSize);
           applyFontSize(fontSize);
@@ -790,7 +1272,10 @@
 
         function resetDoc(text) {
           const doc = text || "";
-          view.setState(EditorState.create({ doc, extensions: buildExtensions() }));
+          const len = view.state.doc.length;
+          view.dispatch({
+            changes: { from: 0, to: len, insert: doc },
+          });
         }
 
         function detectWrapper(rawText) {
@@ -798,11 +1283,20 @@
           const trimmed = raw.trim();
           const jsPrefixMatch = raw.match(/^\s*@js:\s*[\r\n]?([\s\S]*)$/);
           if (jsPrefixMatch) {
-            return { type: "prefix", prefix: "@js:", body: jsPrefixMatch[1] || "" };
+            return {
+              type: "prefix",
+              prefix: "@js:",
+              body: jsPrefixMatch[1] || "",
+            };
           }
           const tagMatch = trimmed.match(/^<js>\s*([\s\S]*?)\s*<\/js>$/i);
           if (tagMatch) {
-            return { type: "tag", open: "<js>", close: "</js>", body: tagMatch[1] };
+            return {
+              type: "tag",
+              open: "<js>",
+              close: "</js>",
+              body: tagMatch[1],
+            };
           }
           const braceMatch = trimmed.match(/^\{\{\s*([\s\S]*?)\s*\}\}$/);
           if (braceMatch) {
@@ -816,8 +1310,10 @@
           if (prettierPluginsCache) return prettierPluginsCache;
           if (!window.prettierPlugins) return null;
           const list = [];
-          if (window.prettierPlugins.babel) list.push(window.prettierPlugins.babel);
-          if (window.prettierPlugins.estree) list.push(window.prettierPlugins.estree);
+          if (window.prettierPlugins.babel)
+            list.push(window.prettierPlugins.babel);
+          if (window.prettierPlugins.estree)
+            list.push(window.prettierPlugins.estree);
           prettierPluginsCache = list.length ? list : null;
           return prettierPluginsCache;
         }
@@ -830,7 +1326,9 @@
           if (!plugins || !plugins.length) {
             throw new Error("Prettier 插件未加载");
           }
-          const width = wrapElements ? printWidth : Math.max(printWidth, 99999);
+          const width = wrapElements
+            ? printWidth
+            : Math.max(printWidth, 99999);
           return window.prettier.format(codeText, {
             parser: parser || "babel",
             plugins: plugins,
@@ -838,7 +1336,7 @@
             useTabs: false,
             singleQuote: singleQuote,
             trailingComma: trailingComma ? "es5" : "none",
-            printWidth: width
+            printWidth: width,
           });
         }
 
@@ -850,36 +1348,57 @@
           await new Promise(requestAnimationFrame);
           try {
             const wrapper = detectWrapper(raw);
-            let formattedBody = await formatWithPrettier(wrapper ? wrapper.body : text, "babel");
+            let formattedBody = "";
             if (wrapper) {
+              formattedBody = await formatWithPrettier(wrapper.body, "babel");
               if (wrapper.type === "prefix") {
                 formattedBody = wrapper.prefix + "\n" + formattedBody;
               } else if (wrapper.type === "tag") {
-                formattedBody = wrapper.open + "\n" + formattedBody + "\n" + wrapper.close;
+                formattedBody =
+                  wrapper.open + "\n" + formattedBody + "\n" + wrapper.close;
               } else if (wrapper.type === "moustache") {
                 formattedBody = "{{\n" + formattedBody + "\n}}";
               }
+            } else {
+              if (/^[\[{]/.test(text)) {
+                try {
+                  formattedBody = JSON.stringify(
+                    JSON.parse(text),
+                    null,
+                    " ".repeat(tabSize),
+                  );
+                } catch (e) {
+                  formattedBody = "";
+                }
+              }
+              if (!formattedBody) {
+                formattedBody = await formatWithPrettier(text, "babel");
+              }
             }
             resetDoc(formattedBody);
-            showToast("格式化完成（Prettier）");
+            showToast("格式化完成");
           } catch (e) {
             appendLog("error", e && e.message ? e.message : e);
             showToast("格式化失败");
           }
         }
 
-        dom.undoBtn.onclick = () => undo(view);
-        dom.redoBtn.onclick = () => redo(view);
-        dom.formatBtn.onclick = formatCode;
+        bindClick(dom.undoBtn, () => undo(view));
+        bindClick(dom.redoBtn, () => redo(view));
+        bindClick(dom.formatBtn, formatCode);
 
         const wrapBtn = dom.wrapBtn;
-        wrapBtn.onclick = () => {
+        bindClick(wrapBtn, () => {
           isWrap = !isWrap;
-          view.dispatch({ effects: wrapComp.reconfigure(isWrap ? EditorView.lineWrapping : []) });
+          view.dispatch({
+            effects: wrapComp.reconfigure(
+              isWrap ? EditorView.lineWrapping : [],
+            ),
+          });
           wrapBtn.classList.toggle("active", isWrap);
           saveSettings();
           showToast("自动换行: " + (isWrap ? "开" : "关"));
-        };
+        });
         const formatOptionsBtn = dom.formatOptionsBtn;
         const formatOptions = dom.formatOptions;
         const wrapElementsToggle = dom.wrapElementsToggle;
@@ -898,88 +1417,227 @@
         singleQuoteToggle.checked = singleQuote;
         trailingCommaToggle.checked = trailingComma;
 
-        wrapElementsToggle.addEventListener("change", () => {
-          wrapElements = wrapElementsToggle.checked;
-          showToast("元素换行: " + (wrapElements ? "开" : "关"));
-          saveSettings();
-        });
-        indentSizeSelect.addEventListener("change", () => {
-          applyTabSize(parseInt(indentSizeSelect.value, 10) || 2);
-          showToast("缩进: " + tabSize);
-          saveSettings();
-        });
-        fontSizeSelect.addEventListener("change", () => {
-          applyFontSize(fontSizeSelect.value || "auto");
-          showToast("字号: " + (fontSize === "auto" ? "自动" : fontSize));
-          saveSettings();
-        });
-        printWidthSelect.addEventListener("change", () => {
-          printWidth = parseInt(printWidthSelect.value, 10) || 120;
-          showToast("宽度: " + printWidth);
-          saveSettings();
-        });
-        themeSelect.addEventListener("change", () => {
-          applyTheme(themeSelect.value || "auto");
-          showToast("主题: " + (themeMode === "auto" ? "系统" : themeMode));
-          saveSettings();
-        });
-        singleQuoteToggle.addEventListener("change", () => {
-          singleQuote = singleQuoteToggle.checked;
-          showToast("单引号: " + (singleQuote ? "开" : "关"));
-          saveSettings();
-        });
-        trailingCommaToggle.addEventListener("change", () => {
-          trailingComma = trailingCommaToggle.checked;
-          showToast("末尾逗号: " + (trailingComma ? "开" : "关"));
-          saveSettings();
-        });
+        function bindToggle(el, onChange, labelFn) {
+          el.addEventListener("change", () => {
+            onChange(el.checked);
+            if (labelFn) showToast(labelFn());
+            saveSettings();
+          });
+        }
 
-        formatOptionsBtn.onclick = (e) => {
-          e.stopPropagation();
+        function bindSelect(el, onChange, labelFn) {
+          el.addEventListener("change", () => {
+            onChange(el.value);
+            if (labelFn) showToast(labelFn());
+            saveSettings();
+          });
+        }
+
+        bindToggle(
+          wrapElementsToggle,
+          (val) => {
+            wrapElements = val;
+          },
+          () => "元素换行: " + (wrapElements ? "开" : "关"),
+        );
+        bindSelect(
+          indentSizeSelect,
+          (val) => applyTabSize(parseInt(val, 10) || 2),
+          () => "缩进: " + tabSize,
+        );
+        bindSelect(
+          fontSizeSelect,
+          (val) => applyFontSize(val || "auto"),
+          () => "字号: " + (fontSize === "auto" ? "自动" : fontSize),
+        );
+        bindSelect(
+          printWidthSelect,
+          (val) => {
+            printWidth = parseInt(val, 10) || 120;
+          },
+          () => "宽度: " + printWidth,
+        );
+        bindSelect(
+          themeSelect,
+          (val) => applyTheme(val || "auto"),
+          () => "主题: " + (themeMode === "auto" ? "系统" : themeMode),
+        );
+        bindToggle(
+          singleQuoteToggle,
+          (val) => {
+            singleQuote = val;
+          },
+          () => "单引号: " + (singleQuote ? "开" : "关"),
+        );
+        bindToggle(
+          trailingCommaToggle,
+          (val) => {
+            trailingComma = val;
+          },
+          () => "末尾逗号: " + (trailingComma ? "开" : "关"),
+        );
+
+        bindClick(formatOptionsBtn, () => {
           formatOptions.classList.toggle("show");
-        };
+        });
         document.addEventListener("click", (e) => {
           if (!formatOptions.classList.contains("show")) return;
-          if (formatOptions.contains(e.target) || e.target === formatOptionsBtn) return;
+          const target = e.target;
+          if (
+            (target instanceof Element && target.closest("#format-options")) ||
+            (target instanceof Element && target.closest("#formatOptionsBtn"))
+          ) {
+            return;
+          }
           formatOptions.classList.remove("show");
         });
 
-        dom.searchToggleBtn.onclick = () => {
+        bindClick(dom.searchToggleBtn, () => {
           if (typeof openSearchPanel === "function") {
             openSearchPanel(view);
             view.focus();
           } else {
             showToast("搜索模块未加载");
           }
-        };
+        });
 
+        function bindClick(el, handler) {
+          el.onclick = handler;
+        }
 
-        const logToggleBtn = dom.logToggleBtn;
-        const logCloseBtn = dom.logCloseBtn;
-        const logClearBtn = dom.logClearBtn;
-        logToggleBtn.onclick = () => {
+        function updateCurlPlaceholders() {
+          if (!dom.curlInput || !dom.curlOutput || !dom.curlModeSelect) return;
+          if (dom.curlModeSelect.value === "analyze-to-curl") {
+            dom.curlInput.placeholder = "粘贴 AnalyzeUrl";
+            dom.curlOutput.placeholder = "转换后的 curl";
+          } else {
+            dom.curlInput.placeholder = "粘贴 curl";
+            dom.curlOutput.placeholder = "转换后的 AnalyzeUrl";
+          }
+        }
+
+        if (dom.curlModeSelect) {
+          dom.curlModeSelect.addEventListener("change", updateCurlPlaceholders);
+          updateCurlPlaceholders();
+        }
+
+        bindClick(dom.curlToggleBtn, () => {
+          dom.curlPanel.classList.toggle("show");
+          if (dom.curlPanel.classList.contains("show")) {
+            updateCurlPlaceholders();
+            if (dom.curlInput) dom.curlInput.focus();
+          }
+        });
+        bindClick(dom.curlCloseBtn, () => {
+          dom.curlPanel.classList.remove("show");
+        });
+        bindClick(dom.curlClearBtn, () => {
+          if (dom.curlInput) dom.curlInput.value = "";
+          if (dom.curlOutput) dom.curlOutput.value = "";
+        });
+        bindClick(dom.curlConvertBtn, () => {
+          const input = dom.curlInput ? dom.curlInput.value : "";
+          if (!input.trim()) {
+            showToast("请输入内容");
+            return;
+          }
+          try {
+            const mode = dom.curlModeSelect
+              ? dom.curlModeSelect.value
+              : "curl-to-analyze";
+            const output =
+              mode === "analyze-to-curl"
+                ? analyzeUrlToCurl(input)
+                : curlToAnalyzeUrl(input);
+            if (dom.curlOutput) dom.curlOutput.value = output;
+          } catch (e) {
+            appendLog(
+              "error",
+              "转换失败: " + (e && e.message ? e.message : e),
+            );
+            showToast("转换失败");
+          }
+        });
+        bindClick(dom.curlCopyBtn, async () => {
+          const text = dom.curlOutput ? dom.curlOutput.value : "";
+          if (!text) {
+            showToast("没有可复制内容");
+            return;
+          }
+          try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              await navigator.clipboard.writeText(text);
+            } else {
+              const ta = document.createElement("textarea");
+              ta.value = text;
+              ta.style.position = "fixed";
+              ta.style.left = "-9999px";
+              document.body.appendChild(ta);
+              ta.select();
+              document.execCommand("copy");
+              document.body.removeChild(ta);
+            }
+            showToast("已复制");
+          } catch (e) {
+            appendLog(
+              "error",
+              "复制失败: " + (e && e.message ? e.message : e),
+            );
+            showToast("复制失败");
+          }
+        });
+
+        bindClick(dom.logToggleBtn, () => {
           dom.logPanel.classList.toggle("show");
           isLogOpen = dom.logPanel.classList.contains("show");
           if (isLogOpen && dom.logBody) {
             dom.logBody.textContent = logLines.join("\n");
             dom.logBody.scrollTop = dom.logBody.scrollHeight;
           }
-        };
-        logCloseBtn.onclick = () => {
+        });
+        bindClick(dom.logCloseBtn, () => {
           dom.logPanel.classList.remove("show");
           isLogOpen = false;
-        };
-        logClearBtn.onclick = () => {
+        });
+        bindClick(dom.logCopyBtn, async () => {
+          const text = logLines.join("\n");
+          if (!text) {
+            showToast("日志为空");
+            return;
+          }
+          try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              await navigator.clipboard.writeText(text);
+            } else {
+              const ta = document.createElement("textarea");
+              ta.value = text;
+              ta.style.position = "fixed";
+              ta.style.left = "-9999px";
+              document.body.appendChild(ta);
+              ta.select();
+              document.execCommand("copy");
+              document.body.removeChild(ta);
+            }
+            showToast("日志已复制");
+          } catch (e) {
+            appendLog("error", "复制失败: " + (e && e.message ? e.message : e));
+            showToast("复制失败");
+          }
+        });
+        bindClick(dom.logClearBtn, () => {
           logLines = [];
           if (isLogOpen && dom.logBody) dom.logBody.textContent = "";
-        };
+        });
 
         let toastTimer = null;
         function showToast(msg) {
           dom.toast.textContent = msg;
           dom.toast.classList.add("show");
           clearTimeout(toastTimer);
-          toastTimer = setTimeout(() => dom.toast.classList.remove("show"), TOAST_MS);
+          toastTimer = setTimeout(
+            () => dom.toast.classList.remove("show"),
+            TOAST_MS,
+          );
         }
 
         function b64ToUtf8(b64) {
@@ -1002,11 +1660,17 @@
 
           if (kind === "promise") {
             const r = e && e.reason != null ? e.reason : unknown;
-            msg = typeof r === "string" ? r : r && r.message ? r.message : String(r);
+            msg =
+              typeof r === "string"
+                ? r
+                : r && r.message
+                  ? r.message
+                  : String(r);
             stack = r && r.stack ? String(r.stack) : "";
           } else {
             msg = e && e.message ? e.message : unknown;
-            stack = e && e.error && e.error.stack ? String(e.error.stack) : "";
+            stack =
+              e && e.error && e.error.stack ? String(e.error.stack) : "";
           }
 
           appendLog(kind, msg + (stack ? "\n" + stack : ""));
@@ -1027,15 +1691,21 @@
           return getCode();
         };
 
-        window.addEventListener("resize", () => {
-          if (fontSize === "auto") applyFontSize("auto");
-        });
+        // window.addEventListener("resize", () => {
+        //   if (fontSize === "auto") applyFontSize("auto");
+        // });
         const __err = console.error.bind(console);
         console.error = function (...args) {
-          const safe = args.map(a => {
-            if (typeof a === "string") return a;
-            try { return JSON.stringify(a); } catch (e) { return String(a); }
-          }).join(" ");
+          const safe = args
+            .map((a) => {
+              if (typeof a === "string") return a;
+              try {
+                return JSON.stringify(a);
+              } catch (e) {
+                return String(a);
+              }
+            })
+            .join(" ");
           appendLog("error", safe);
           __err(...args);
         };
