@@ -17,6 +17,7 @@ import io.legado.app.help.CacheManager
 import io.legado.app.help.JsExtensions
 import io.legado.app.help.http.CookieStore
 import io.legado.app.help.source.getShareScope
+import io.legado.app.model.SharedJsScope
 import io.legado.app.model.Debug
 import io.legado.app.model.webBook.WebBook
 import io.legado.app.utils.GSON
@@ -783,7 +784,9 @@ class AnalyzeRule(
             bindings["nextChapterUrl"] = nextChapterUrl
             bindings["rssArticle"] = rssArticle
         }
-        val topScope = source?.getShareScope(coroutineContext) ?: topScopeRef?.get()
+        val topScope = source?.getShareScope(coroutineContext)
+            ?: topScopeRef?.get()
+            ?: SharedJsScope.getCryptoScope(coroutineContext)
         val scope = if (topScope == null) {
             RhinoScriptEngine.getRuntimeScope(bindings).apply {
                 if (evalJSCallCount++ > 16) {

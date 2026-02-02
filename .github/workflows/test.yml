@@ -162,7 +162,11 @@ jobs:
       - uses: actions/checkout@v4
       - id: commit_msg
         run: |
-          msg=$(git log -1 --pretty=%B | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | sed 's/[[:space:]]*$//')
+          msg="${{ github.event.head_commit.message }}"
+          if [ -z "$msg" ]; then
+            msg=$(git log -1 --pretty=%B)
+          fi
+          msg=$(echo "$msg" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | sed 's/[[:space:]]*$//')
           echo "msg=$msg" >> $GITHUB_OUTPUT
       - name: Build Release Notes
         run: |
