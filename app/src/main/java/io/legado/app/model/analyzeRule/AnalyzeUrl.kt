@@ -39,6 +39,7 @@ import io.legado.app.help.http.postForm
 import io.legado.app.help.http.postJson
 import io.legado.app.help.http.postMultipart
 import io.legado.app.help.source.getShareScope
+import io.legado.app.model.SharedJsScope
 import io.legado.app.utils.EncoderUtils
 import io.legado.app.utils.GSON
 import io.legado.app.utils.GSONStrict
@@ -359,6 +360,7 @@ class AnalyzeUrl(
             bindings["result"] = result
         }
         val sharedScope = source?.getShareScope(coroutineContext)
+            ?: SharedJsScope.getCryptoScope(coroutineContext)
         val scope = if (sharedScope == null) {
             RhinoScriptEngine.getRuntimeScope(bindings)
         } else {
