@@ -586,6 +586,7 @@
           indentMore,
           indentLess,
           insertNewlineAndIndent,
+          Transaction,
         } = CM;
 
         let isWrap = false;
@@ -1277,12 +1278,17 @@
           return view.state.doc.toString();
         }
 
-        function resetDoc(text) {
+        function resetDoc(text, opts) {
           const doc = text || "";
           const len = view.state.doc.length;
-          view.dispatch({
+          const addToHistory = !(opts && opts.addToHistory === false);
+          const tr = {
             changes: { from: 0, to: len, insert: doc },
-          });
+          };
+          if (!addToHistory && Transaction && Transaction.addToHistory) {
+            tr.annotations = Transaction.addToHistory.of(false);
+          }
+          view.dispatch(tr);
         }
 
         function detectWrapper(rawText) {
@@ -1685,7 +1691,7 @@
         };
 
         window.setCodeFromAndroid = function (b64) {
-          resetDoc(b64ToUtf8(b64));
+          resetDoc(b64ToUtf8(b64), { addToHistory: false });
         };
 
         window.__save = function () {
