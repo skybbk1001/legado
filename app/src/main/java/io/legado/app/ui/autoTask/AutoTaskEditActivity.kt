@@ -96,6 +96,7 @@ class AutoTaskEditActivity :
             R.id.menu_save -> {
                 val rule = buildTask() ?: return true
                 viewModel.save(rule) {
+                    originTask = rule.copy()
                     setResult(RESULT_OK)
                     finish()
                 }
@@ -103,6 +104,7 @@ class AutoTaskEditActivity :
             R.id.menu_debug_task -> {
                 val rule = buildTask() ?: return true
                 viewModel.save(rule) {
+                    originTask = rule.copy()
                     startActivity(AutoTaskDebugActivity.startIntent(this, rule.id))
                 }
             }
