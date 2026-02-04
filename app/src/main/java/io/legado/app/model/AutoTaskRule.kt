@@ -35,5 +35,7 @@ data class AutoTaskRule(
     @SerializedName("lastResult")
     var lastResult: String? = null,
     @SerializedName("lastError")
-    var lastError: String? = null
+    var lastError: String? = null,
+    @SerializedName("lastLog")
+    var lastLog: String? = null
 )

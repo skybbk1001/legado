@@ -171,6 +171,10 @@ class AutoTaskActivity : VMBaseActivity<ActivityAutoTaskBinding, AutoTaskViewMod
         viewModel.save(task.copy(enable = enabled))
     }
 
+    override fun showLog(task: AutoTaskRule) {
+        showDialogFragment(AutoTaskLogDialog(task.id, task.name))
+    }
+
     override fun upCountView() {
         binding.selectActionBar.upCountView(adapter.selection.size, adapter.itemCount)
     }

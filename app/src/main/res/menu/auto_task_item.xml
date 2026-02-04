@@ -8,6 +8,11 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/menu_log"
+        android:title="@string/log"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/menu_delete"
         android:icon="@drawable/ic_outline_delete"
         android:title="@string/auto_task_delete"

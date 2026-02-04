@@ -13,6 +13,7 @@ import io.legado.app.constant.PreferKey
 import io.legado.app.model.AutoTask
 import io.legado.app.model.AutoTaskRule
 import io.legado.app.model.AutoTaskProtocol
+import io.legado.app.utils.stackTraceStr
 import io.legado.app.utils.servicePendingIntent
 import io.legado.app.utils.startService
 import io.legado.app.utils.putPrefBoolean
@@ -55,6 +56,7 @@ class AutoTaskService : BaseService() {
     private var taskJob: Job? = null
     private var notificationContent = appCtx.getString(R.string.service_starting)
     private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+    private val maxLogLength = 4000
     private val taskLock = Mutex()
     private val refreshChannel = Channel<Unit>(Channel.CONFLATED)
 
@@ -203,21 +205,25 @@ class AutoTaskService : BaseService() {
             }.onSuccess { result ->
                 try {
                     val cost = System.currentTimeMillis() - startAt
+                    val logLines = mutableListOf<String>()
                     AutoTaskProtocol.handle(result, this, task.name) { msg ->
-                        AppLog.put("AutoTask ${task.name}: $msg")
+                        AppLog.put("AutoTask[${task.id}] ${task.name}: $msg")
+                        logLines.add(msg)
                     }
                     val detail = result?.toString()?.take(200)
                     val msg = if (detail.isNullOrBlank()) {
-                        "AutoTask ${task.name} done (${cost}ms)."
+                        "AutoTask[${task.id}] ${task.name} done (${cost}ms)."
                     } else {
-                        "AutoTask ${task.name} done (${cost}ms): $detail"
+                        "AutoTask[${task.id}] ${task.name} done (${cost}ms): $detail"
                     }
                     val lastRun = System.currentTimeMillis()
+                    val lastLog = buildLastLog(logLines, detail, cost, lastRun)
                     AutoTask.update(task.id) {
                         it.copy(
                             lastRunAt = lastRun,
                             lastResult = detail,
-                            lastError = null
+                            lastError = null,
+                            lastLog = lastLog
                         )
                     }
                     notificationContent = getString(
@@ -228,27 +234,31 @@ class AutoTaskService : BaseService() {
                     AppLog.put(msg)
                 } catch (error: Throwable) {
                     val msg = error.localizedMessage ?: error.toString()
+                    val lastLog = buildErrorLog(msg, error, System.currentTimeMillis())
                     AutoTask.update(task.id) {
                         it.copy(
                             lastRunAt = System.currentTimeMillis(),
-                            lastError = msg
+                            lastError = msg,
+                            lastLog = lastLog
                         )
                     }
                     notificationContent = getString(R.string.auto_task_failed, msg)
                     upNotification()
-                    AppLog.put("AutoTask ${task.name} failed: $msg", error)
+                    AppLog.put("AutoTask[${task.id}] ${task.name} failed: $msg", error)
                 }
             }.onFailure { error ->
                 val msg = error.localizedMessage ?: error.toString()
+                val lastLog = buildErrorLog(msg, error, System.currentTimeMillis())
                 AutoTask.update(task.id) {
                     it.copy(
                         lastRunAt = System.currentTimeMillis(),
-                        lastError = msg
+                        lastError = msg,
+                        lastLog = lastLog
                     )
                 }
                 notificationContent = getString(R.string.auto_task_failed, msg)
                 upNotification()
-                AppLog.put("AutoTask ${task.name} failed: $msg", error)
+                AppLog.put("AutoTask[${task.id}] ${task.name} failed: $msg", error)
             }
         }
     }
@@ -265,8 +275,49 @@ class AutoTaskService : BaseService() {
     private fun updateCronError(task: AutoTaskRule, message: String) {
         if (task.lastError == message) return
         AutoTask.update(task.id) {
-            it.copy(lastError = message)
+            val now = System.currentTimeMillis()
+            it.copy(lastError = message, lastLog = buildErrorLog(message, null, now))
         }
+    }
+
+    private fun buildLastLog(
+        lines: List<String>,
+        detail: String?,
+        cost: Long,
+        runAt: Long
+    ): String {
+        val time = formatLogTime(runAt)
+        val sb = StringBuilder()
+        sb.append("[OK] ").append(time).append('\n')
+        sb.append("耗时: ").append(cost).append("ms")
+        if (lines.isNotEmpty()) {
+            sb.append('\n').append("动作:")
+            lines.forEach { line ->
+                sb.append('\n').append("- ").append(line)
+            }
+        }
+        if (!detail.isNullOrBlank()) {
+            sb.append('\n').append("返回: ").append(detail)
+        }
+        val text = sb.toString().ifBlank { "执行完成" }
+        return if (text.length > maxLogLength) text.take(maxLogLength) else text
+    }
+
+    private fun buildErrorLog(msg: String, error: Throwable?, runAt: Long): String {
+        val time = formatLogTime(runAt)
+        val detail = error?.stackTraceStr.orEmpty()
+        val sb = StringBuilder()
+        sb.append("[FAIL] ").append(time).append('\n')
+        sb.append("错误: ").append(msg)
+        if (detail.isNotBlank()) {
+            sb.append('\n').append("堆栈:").append('\n').append(detail)
+        }
+        val text = sb.toString()
+        return if (text.length > maxLogLength) text.take(maxLogLength) else text
+    }
+
+    private fun formatLogTime(time: Long): String {
+        return SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(time))
     }
 
     override fun startForegroundNotification() {

@@ -170,6 +170,7 @@ class AutoTaskAdapter(context: Context, private val callBack: CallBack) :
                     putExtra("type", "autoTask")
                     putExtra("key", task.id)
                 }
+                R.id.menu_log -> callBack.showLog(task)
                 R.id.menu_delete -> callBack.delete(task)
             }
             true
@@ -182,5 +183,6 @@ class AutoTaskAdapter(context: Context, private val callBack: CallBack) :
         fun delete(task: AutoTaskRule)
         fun toggle(task: AutoTaskRule, enabled: Boolean)
         fun upCountView()
+        fun showLog(task: AutoTaskRule)
     }
 }
