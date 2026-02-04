@@ -1508,11 +1508,45 @@
         bindClick(dom.searchToggleBtn, () => {
           if (typeof openSearchPanel === "function") {
             openSearchPanel(view);
-            view.focus();
+            requestAnimationFrame(() => {
+              bindSearchPanelHandlers();
+              focusSearchInput();
+            });
           } else {
             showToast("搜索模块未加载");
           }
         });
+
+        function focusSearchInput() {
+          const panel = view && view.dom ? view.dom.querySelector(".cm-search") : null;
+          if (!panel) return false;
+          const input = panel.querySelector("input");
+          if (!input) return false;
+          try {
+            input.focus({ preventScroll: true });
+          } catch (e) {
+            input.focus();
+          }
+          return true;
+        }
+
+        function bindSearchPanelHandlers() {
+          const panel = view && view.dom ? view.dom.querySelector(".cm-search") : null;
+          if (!panel || panel.dataset.focusGuard === "1") return;
+          panel.dataset.focusGuard = "1";
+          const guard = (e) => {
+            const target = e.target instanceof Element ? e.target : null;
+            if (target && target.closest("button")) {
+              setTimeout(focusSearchInput, 0);
+            }
+          };
+          panel.addEventListener("pointerdown", guard, true);
+          panel.addEventListener("touchstart", guard, true);
+          panel.addEventListener("mousedown", guard, true);
+          panel.addEventListener("click", () => {
+            focusSearchInput();
+          }, true);
+        }
 
         function bindClick(el, handler) {
           el.onclick = handler;
