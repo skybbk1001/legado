@@ -21,6 +21,7 @@ import io.legado.app.ui.book.read.page.entities.TextChapter
 import io.legado.app.ui.book.read.page.entities.TextLine
 import io.legado.app.ui.book.read.page.entities.TextPage
 import io.legado.app.ui.book.read.page.entities.column.ImageColumn
+import io.legado.app.ui.book.read.page.entities.column.ReviewColumn
 import io.legado.app.ui.book.read.page.entities.column.TextColumn
 import io.legado.app.utils.dpToPx
 import io.legado.app.utils.fastSum
@@ -78,6 +79,7 @@ class TextChapterLayout(
     private val isMiddleTitle = ReadBookConfig.isMiddleTitle
     private val textFullJustify = ReadBookConfig.textFullJustify
     private val pageAnim = book.getPageAnim()
+    private val reviewTitleOffset = 1
 
     private var pendingTextPage = TextPage()
 
@@ -208,7 +210,7 @@ class TextChapterLayout(
             displayTitle.splitNotBlank("\n").forEach { text ->
                 setTypeText(
                     book,
-                    if (AppConfig.enableReview) text + ChapterProvider.reviewChar else text,
+                    text,
                     titlePaint,
                     titlePaintTextHeight,
                     titlePaintFontMetrics,
@@ -296,7 +298,7 @@ class TextChapterLayout(
                     if (text.isNotBlank()) {
                         setTypeText(
                             book,
-                            if (AppConfig.enableReview) text + ChapterProvider.reviewChar else text,
+                            text,
                             contentPaint,
                             contentPaintTextHeight,
                             contentPaintFontMetrics,
@@ -307,6 +309,10 @@ class TextChapterLayout(
                 }
             }
             pendingTextPage.lines.last().isParagraphEnd = true
+            ChapterProvider.appendReviewColumnIfNeeded(
+                pendingTextPage.lines.last(),
+                reviewTitleOffset
+            )
             stringBuilder.append("\n")
         }
         val textPage = pendingTextPage
@@ -548,6 +554,7 @@ class TextChapterLayout(
             else -> lastLine.paragraphNum
         }
         textLine.paragraphNum = paragraphNum
+        updateReviewCount(textLine, paragraphNum)
         textLine.chapterPosition =
             (textPages.lastOrNull()?.lines?.lastOrNull()?.run {
                 chapterPosition + charSize + if (isParagraphEnd) 1 else 0
@@ -718,13 +725,14 @@ class TextChapterLayout(
                 )
             }
 
-//            isLineEnd && char == ChapterProvider.reviewChar -> {
-//                ReviewColumn(
-//                    start = absStartX + xStart,
-//                    end = absStartX + xEnd,
-//                    count = 100
-//                )
-//            }
+            isLineEnd && char == ChapterProvider.reviewChar -> {
+                val width = ChapterProvider.getReviewWidth(textLine.isTitle)
+                ReviewColumn(
+                    start = absStartX + xStart,
+                    end = absStartX + xStart + width,
+                    count = 0
+                )
+            }
 
             else -> {
                 TextColumn(
@@ -735,6 +743,20 @@ class TextChapterLayout(
             }
         }
         textLine.addColumn(column)
+    }
+
+    private fun updateReviewCount(textLine: TextLine, paragraphNum: Int) {
+        val count = ChapterProvider.getReviewCount(
+            paragraphNum,
+            textLine.isTitle,
+            reviewTitleOffset
+        )
+        if (count <= 0) return
+        textLine.columns.forEach { column ->
+            if (column is ReviewColumn) {
+                column.count = count
+            }
+        }
     }
 
     /**

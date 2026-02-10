@@ -74,6 +74,7 @@ class AnalyzeRule(
     private val stringRuleCache = hashMapOf<String, List<SourceRule>>()
     private val regexCache = hashMapOf<String, Regex?>()
     private val scriptCache = hashMapOf<String, CompiledScript>()
+    private val localVars = HashMap<String, String>()
     private var topScopeRef: WeakReference<Scriptable>? = null
     private var evalJSCallCount = 0
 
@@ -746,10 +747,16 @@ class AnalyzeRule(
         return value
     }
 
+    fun setLocal(key: String, value: String): AnalyzeRule {
+        localVars[key] = value
+        return this
+    }
+
     /**
      * 获取保存的数据
      */
     fun get(key: String): String {
+        localVars[key]?.takeIf { it.isNotEmpty() }?.let { return it }
         when (key) {
             "bookName" -> book?.let {
                 return it.name
@@ -783,6 +790,9 @@ class AnalyzeRule(
             bindings["src"] = content
             bindings["nextChapterUrl"] = nextChapterUrl
             bindings["rssArticle"] = rssArticle
+            bindings["paraIndex"] = get("paraIndex")
+            bindings["paraData"] = get("paraData")
+            bindings["page"] = get("page")
         }
         val topScope = source?.getShareScope(coroutineContext)
             ?: topScopeRef?.get()

@@ -1030,7 +1030,6 @@
     <string name="show_add_to_shelf_alert_title">返回时提示放入书架</string>
     <string name="show_add_to_shelf_alert_summary">阅读未放入书架的书籍在返回时提示放入书架</string>
     <string name="review">Review</string>
-    <string name="rule_review_url">段评URL（reviewUrl）</string>
     <string name="rule_avatar">段评发布者头像（avatarRule）</string>
     <string name="rule_review_content">段评内容（contentRule）</string>
     <string name="rule_review_quote">段评回复URL（reviewQuoteUrl）</string>

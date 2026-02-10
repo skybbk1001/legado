@@ -661,6 +661,7 @@ Placeholders:
     <string name="source_tab_info">Information</string>
     <string name="source_tab_toc">Chapters</string>
     <string name="source_tab_content">Content</string>
+    <string name="source_tab_review">Review</string>
 
     <string name="e_ink_mode">E-Ink mode</string>
     <string name="e_ink_mode_detail">Remove animations and optimize the experience of using E-paper books</string>
@@ -1152,7 +1153,33 @@ Placeholders:
     <string name="show_add_to_shelf_alert_summary">Prompt to add to bookshelf when return from reading books that are not on the bookshelf</string>
     <string name="review">Review</string>
     <string name="rule_avatar">段评发布者头像（avatarRule）</string>
-    <string name="rule_review_url">段评URL（reviewUrl）</string>
+    <string name="rule_review_summary_url">段评统计URL（reviewSummaryUrl）</string>
+    <string name="rule_review_summary_list">段评统计列表（summaryListRule）</string>
+    <string name="rule_review_summary_id">Paragraph index (summaryParagraphIndexRule)</string>
+    <string name="rule_review_summary_key">Review data (summaryParagraphDataRule)</string>
+    <string name="rule_review_summary_count">Review count (summaryCountRule)</string>
+    <string name="rule_review_detail_url">段评详情URL（reviewDetailUrl）</string>
+    <string name="rule_review_detail_next_url">段评下一页URL（reviewDetailNextPageUrl）</string>
+    <string name="rule_review_detail_list">段评详情列表（detailListRule）</string>
+    <string name="rule_review_detail_id">段评ID（detailIdRule）</string>
+    <string name="rule_review_detail_avatar">头像（detailAvatarRule）</string>
+    <string name="rule_review_detail_name">昵称（detailNameRule）</string>
+    <string name="rule_review_detail_badge">徽章（detailBadgeRule）</string>
+    <string name="rule_review_detail_content">评论内容（detailContentRule）</string>
+    <string name="rule_review_detail_image">Comment image（detailImageRule）</string>
+    <string name="rule_review_detail_audio">Comment audio（detailAudioRule）</string>
+    <string name="rule_review_detail_time">评论时间（detailTimeRule）</string>
+    <string name="rule_review_detail_like_count">Like count（detailLikeCountRule）</string>
+    <string name="rule_review_detail_reply_count">Reply count（detailReplyCountRule）</string>
+    <string name="rule_review_reply_list">Sub-comment list（replyListRule）</string>
+    <string name="rule_review_reply_id">Sub-comment ID（replyIdRule）</string>
+    <string name="rule_review_reply_avatar">Sub-comment avatar（replyAvatarRule）</string>
+    <string name="rule_review_reply_name">Sub-comment name（replyNameRule）</string>
+    <string name="rule_review_reply_badge">Sub-comment badge（replyBadgeRule）</string>
+    <string name="rule_review_reply_content">Sub-comment content（replyContentRule）</string>
+    <string name="rule_review_reply_image">Sub-comment image（replyImageRule）</string>
+    <string name="rule_review_reply_audio">Sub-comment audio（replyAudioRule）</string>
+    <string name="rule_review_reply_time">Sub-comment time（replyTimeRule）</string>
     <string name="rule_review_content">Paragraph review content（contentRule）</string>
     <string name="rule_post_time">Release time of paragraph comments（postTimeRule）</string>
     <string name="rule_review_quote">Paragraph comment replied to URL（reviewQuoteUrl）</string>
@@ -1349,4 +1376,10 @@ Placeholders:
     <string name="auto_check_new_backup_t">自动检查新备份</string>
     <string name="auto_check_new_backup_s">打开软件时检查是否有新备份，有新备份时提示是否更新</string>
     <string name="sys_image_picker">系统图片选择器</string>
+    <string name="review_like_count">Like %1$d</string>
+    <string name="review_reply_count">Reply %1$d</string>
+    <string name="review_total_count">Total %1$d comments</string>
+    <string name="review_more_replies">View more %1$d replies</string>
+    <string name="review_collapse_replies">Collapse replies</string>
+    <string name="review_play_audio">Play audio</string>
 </resources>

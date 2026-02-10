@@ -7,18 +7,41 @@ import kotlinx.parcelize.Parcelize
 
 @Parcelize
 data class ReviewRule(
-    var reviewUrl: String? = null,          // 段评URL
-    var avatarRule: String? = null,         // 段评发布者头像
-    var contentRule: String? = null,        // 段评内容
-    var postTimeRule: String? = null,       // 段评发布时间
-    var reviewQuoteUrl: String? = null,     // 获取段评回复URL
+    // 是否启用段评
+    var enabled: Boolean = false,
+    // 段评数量（章节加载后请求）
+    var reviewSummaryUrl: String? = null,
+    var summaryListRule: String? = null,
+    var summaryParagraphIndexRule: String? = null,
+    var summaryParagraphDataRule: String? = null,
+    var summaryCountRule: String? = null,
 
-    // 这些功能将在以上功能完成以后实现
-    var voteUpUrl: String? = null,          // 点赞URL
-    var voteDownUrl: String? = null,        // 点踩URL
-    var postReviewUrl: String? = null,      // 发送回复URL
-    var postQuoteUrl: String? = null,       // 发送回复段评URL
-    var deleteUrl: String? = null,          // 删除段评URL
+    // 段评详情（点击图标请求，支持 paraIndex / paraData 变量）
+    var reviewDetailUrl: String? = null,
+    // 段评详情下一页URL（可选，可使用 result 解析响应）
+    var reviewDetailNextPageUrl: String? = null,
+    var detailListRule: String? = null,
+    var detailIdRule: String? = null,
+    var detailAvatarRule: String? = null,
+    var detailNameRule: String? = null,
+    var detailBadgeRule: String? = null,
+    var detailContentRule: String? = null,
+    var detailImageRule: String? = null,
+    var detailAudioRule: String? = null,
+    var detailTimeRule: String? = null,
+    var detailLikeCountRule: String? = null,
+    var detailReplyCountRule: String? = null,
+
+    // 子评论
+    var replyListRule: String? = null,
+    var replyIdRule: String? = null,
+    var replyAvatarRule: String? = null,
+    var replyNameRule: String? = null,
+    var replyBadgeRule: String? = null,
+    var replyContentRule: String? = null,
+    var replyImageRule: String? = null,
+    var replyAudioRule: String? = null,
+    var replyTimeRule: String? = null,
 ) : Parcelable {
 
     companion object {

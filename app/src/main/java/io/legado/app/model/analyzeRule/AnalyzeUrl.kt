@@ -78,6 +78,7 @@ class AnalyzeUrl(
     private val mUrl: String,
     private val key: String? = null,
     private val page: Int? = null,
+    private val extraParams: Map<String, String>? = null,
     private val speakText: String? = null,
     private val speakSpeed: Int? = null,
     private var baseUrl: String = "",
@@ -346,18 +347,22 @@ class AnalyzeUrl(
      * 执行JS
      */
     fun evalJS(jsStr: String, result: Any? = null): Any? {
+        val pageStr = get("page")
+        val pageValue: Any? = page ?: pageStr.toIntOrNull() ?: pageStr.takeIf { it.isNotBlank() }
         val bindings = buildScriptBindings { bindings ->
             bindings["java"] = this
             bindings["baseUrl"] = baseUrl
             bindings["cookie"] = CookieStore
             bindings["cache"] = CacheManager
-            bindings["page"] = page
+            bindings["page"] = pageValue
             bindings["key"] = key
             bindings["speakText"] = speakText
             bindings["speakSpeed"] = speakSpeed
             bindings["book"] = ruleData as? Book
             bindings["source"] = source
             bindings["result"] = result
+            bindings["paraIndex"] = get("paraIndex")
+            bindings["paraData"] = get("paraData")
         }
         val sharedScope = source?.getShareScope(coroutineContext)
             ?: SharedJsScope.getCryptoScope(coroutineContext)
@@ -378,6 +383,7 @@ class AnalyzeUrl(
     }
 
     fun get(key: String): String {
+        extraParams?.get(key)?.takeIf { it.isNotEmpty() }?.let { return it }
         when (key) {
             "bookName" -> (ruleData as? Book)?.let {
                 return it.name

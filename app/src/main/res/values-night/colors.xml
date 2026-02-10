@@ -39,4 +39,11 @@
 
     <!--statusBarBackground-->
     <color name="navigation_bar_bag">#222222</color>
+
+    <!-- Review dialog -->
+    <color name="reviewHandle">#4DFFFFFF</color>
+    <color name="reviewCardBg">#FF2A2D33</color>
+    <color name="reviewReplyBg">#FF23262B</color>
+    <color name="reviewCardStroke">#33FFFFFF</color>
+    <color name="reviewBadgeBg">#26FFFFFF</color>
 </resources>

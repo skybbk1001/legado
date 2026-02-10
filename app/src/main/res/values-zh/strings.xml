@@ -659,6 +659,7 @@ Cron 使用 5 个字段：**分 时 日 月 周**
     <string name="source_tab_info">详情</string>
     <string name="source_tab_toc">目录</string>
     <string name="source_tab_content">正文</string>
+    <string name="source_tab_review">段评</string>
 
     <string name="e_ink_mode">E-Ink 模式</string>
     <string name="e_ink_mode_detail">去除动画，优化电纸书使用体验</string>
@@ -1148,7 +1149,33 @@ Cron 使用 5 个字段：**分 时 日 月 周**
     <string name="show_add_to_shelf_alert_title">返回时提示放入书架</string>
     <string name="show_add_to_shelf_alert_summary">阅读未放入书架的书籍在返回时提示放入书架</string>
     <string name="review">段评</string>
-    <string name="rule_review_url">段评URL（reviewUrl）</string>
+    <string name="rule_review_summary_url">段评统计URL（reviewSummaryUrl）</string>
+    <string name="rule_review_summary_list">段评统计列表（summaryListRule）</string>
+    <string name="rule_review_summary_id">段落索引（summaryParagraphIndexRule）</string>
+    <string name="rule_review_summary_key">段评数据（summaryParagraphDataRule）</string>
+    <string name="rule_review_summary_count">段评数量（summaryCountRule）</string>
+    <string name="rule_review_detail_url">段评详情URL（reviewDetailUrl）</string>
+    <string name="rule_review_detail_next_url">段评下一页URL（reviewDetailNextPageUrl）</string>
+    <string name="rule_review_detail_list">段评详情列表（detailListRule）</string>
+    <string name="rule_review_detail_id">段评ID（detailIdRule）</string>
+    <string name="rule_review_detail_avatar">头像（detailAvatarRule）</string>
+    <string name="rule_review_detail_name">昵称（detailNameRule）</string>
+    <string name="rule_review_detail_badge">徽章（detailBadgeRule）</string>
+    <string name="rule_review_detail_content">评论内容（detailContentRule）</string>
+    <string name="rule_review_detail_image">评论图片（detailImageRule）</string>
+    <string name="rule_review_detail_audio">评论语音（detailAudioRule）</string>
+    <string name="rule_review_detail_time">评论时间（detailTimeRule）</string>
+    <string name="rule_review_detail_like_count">点赞数量（detailLikeCountRule）</string>
+    <string name="rule_review_detail_reply_count">回复数量（detailReplyCountRule）</string>
+    <string name="rule_review_reply_list">子评论列表（replyListRule）</string>
+    <string name="rule_review_reply_id">子评论ID（replyIdRule）</string>
+    <string name="rule_review_reply_avatar">子评论头像（replyAvatarRule）</string>
+    <string name="rule_review_reply_name">子评论昵称（replyNameRule）</string>
+    <string name="rule_review_reply_badge">子评论徽章（replyBadgeRule）</string>
+    <string name="rule_review_reply_content">子评论内容（replyContentRule）</string>
+    <string name="rule_review_reply_image">子评论图片（replyImageRule）</string>
+    <string name="rule_review_reply_audio">子评论语音（replyAudioRule）</string>
+    <string name="rule_review_reply_time">子评论时间（replyTimeRule）</string>
     <string name="rule_avatar">段评发布者头像（avatarRule）</string>
     <string name="rule_review_content">段评内容（contentRule）</string>
     <string name="rule_post_time">段评发布时间（postTimeRule）</string>
@@ -1346,6 +1373,12 @@ Cron 使用 5 个字段：**分 时 日 月 周**
     <string name="auto_check_new_backup_t">自动检查新备份</string>
     <string name="auto_check_new_backup_s">打开软件时检查是否有新备份，有新备份时提示是否更新</string>
     <string name="sys_image_picker">系统图片选择器</string>
+    <string name="review_like_count">点赞 %1$d</string>
+    <string name="review_reply_count">回复 %1$d</string>
+    <string name="review_total_count">共%1$d条评论</string>
+    <string name="review_more_replies">查看更多%1$d条回复</string>
+    <string name="review_collapse_replies">收起回复</string>
+    <string name="review_play_audio">播放语音</string>
 </resources>
 
 

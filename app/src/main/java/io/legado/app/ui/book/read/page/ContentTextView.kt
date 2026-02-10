@@ -240,7 +240,8 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
                 }
 
                 is ReviewColumn -> {
-                    context.toastOnUi("Button Pressed!")
+                    val reviewId = resolveReviewId(textLine)
+                    callBack.onReviewClick(reviewId, column.count)
                     handled = true
                 }
 
@@ -716,7 +717,14 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         fun upSelectedEnd(x: Float, y: Float)
         fun onImageLongPress(x: Float, y: Float, src: String)
         fun onImageClick(src: String): Boolean
+        fun onReviewClick(paragraphNum: Int, count: Int)
         fun onCancelSelect()
         fun onLongScreenshotTouchEvent(event: MotionEvent): Boolean
+    }
+
+    private fun resolveReviewId(textLine: TextLine): Int {
+        if (textLine.isTitle) return -1
+        val reviewId = textLine.paragraphNum - 1
+        return if (reviewId > 0) reviewId else textLine.paragraphNum
     }
 }

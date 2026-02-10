@@ -113,4 +113,11 @@
     <color name="ate_navigation_drawer_selected_dark">#202020</color>
 
     <color name="book_ant_10">#141414</color>
+
+    <!-- Review dialog -->
+    <color name="reviewHandle">#36000000</color>
+    <color name="reviewCardBg">#FFFFFFFF</color>
+    <color name="reviewReplyBg">#FFF5F7FA</color>
+    <color name="reviewCardStroke">#16000000</color>
+    <color name="reviewBadgeBg">#12000000</color>
 </resources>

@@ -76,6 +76,21 @@ data class TextLine(
         textColumns.add(column)
     }
 
+    fun removeColumns(predicate: (BaseColumn) -> Boolean): Boolean {
+        var removed = false
+        val iterator = textColumns.iterator()
+        while (iterator.hasNext()) {
+            if (predicate(iterator.next())) {
+                iterator.remove()
+                removed = true
+            }
+        }
+        if (removed) {
+            onlyTextColumn = textColumns.all { it is TextColumn }
+        }
+        return removed
+    }
+
     fun getColumn(index: Int): BaseColumn {
         return textColumns.getOrElse(index) {
             textColumns.last()

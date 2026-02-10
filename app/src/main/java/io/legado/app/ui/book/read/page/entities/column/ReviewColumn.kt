@@ -16,7 +16,7 @@ import io.legado.app.ui.book.read.page.provider.ChapterProvider
 data class ReviewColumn(
     override var start: Float,
     override var end: Float,
-    val count: Int = 0
+    var count: Int = 0
 ) : BaseColumn {
 
     override var textLine: TextLine = emptyTextLine
@@ -26,15 +26,12 @@ data class ReviewColumn(
         } else {
             ChapterProvider.contentPaint
         }
-        drawToCanvas(canvas, textLine.lineBase, textPaint.textSize)
+        val baseLine = textLine.lineBase - textLine.lineTop
+        drawToCanvas(canvas, baseLine, textPaint.textSize)
     }
 
-    val countText by lazy {
-        if (count > 999) {
-            return@lazy "999"
-        }
-        return@lazy count.toString()
-    }
+    val countText: String
+        get() = if (count > 999) "999" else count.toString()
 
     val path by lazy { Path() }
 

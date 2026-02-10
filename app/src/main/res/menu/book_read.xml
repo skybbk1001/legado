@@ -101,14 +101,6 @@
         android:title="@string/re_segment"
         app:showAsAction="never" />
 
-    <item
-        android:id="@+id/menu_enable_review"
-        android:checkable="true"
-        android:checked="false"
-        android:title="@string/review"
-        android:visible="false"
-        app:showAsAction="never" />
-
     <group android:id="@+id/menu_group_epub">
 
         <item

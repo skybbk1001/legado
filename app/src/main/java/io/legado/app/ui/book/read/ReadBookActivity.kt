@@ -30,6 +30,7 @@ import io.legado.app.constant.EventBus
 import io.legado.app.constant.PreferKey
 import io.legado.app.constant.Status
 import io.legado.app.data.appDb
+import io.legado.app.data.entities.BaseSource
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
 import io.legado.app.data.entities.BookProgress
@@ -51,6 +52,7 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ReadTipConfig
 import io.legado.app.help.coroutine.Coroutine
+import io.legado.app.constant.AppPattern
 import io.legado.app.help.source.getSourceType
 import io.legado.app.help.storage.Backup
 import io.legado.app.lib.dialogs.SelectItem
@@ -59,6 +61,7 @@ import io.legado.app.lib.dialogs.selector
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.model.ReadAloud
 import io.legado.app.model.ReadBook
+import io.legado.app.model.analyzeRule.AnalyzeByJSonPath
 import io.legado.app.model.analyzeRule.AnalyzeRule
 import io.legado.app.model.analyzeRule.AnalyzeRule.Companion.setChapter
 import io.legado.app.model.analyzeRule.AnalyzeRule.Companion.setCoroutineContext
@@ -114,9 +117,11 @@ import io.legado.app.utils.hexString
 import io.legado.app.utils.iconItemOnLongClick
 import io.legado.app.utils.invisible
 import io.legado.app.utils.isAbsUrl
+import io.legado.app.utils.isJson
 import io.legado.app.utils.isTrue
 import io.legado.app.utils.launch
 import io.legado.app.utils.navigationBarGravity
+import kotlin.coroutines.CoroutineContext
 import io.legado.app.utils.observeEvent
 import io.legado.app.utils.observeEventSticky
 import io.legado.app.utils.postEvent
@@ -130,6 +135,7 @@ import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.GSON
 import io.legado.app.utils.fromJsonObject
 import io.legado.app.utils.visible
+import io.legado.app.data.entities.rule.ReviewRule
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.Job
@@ -137,6 +143,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.mozilla.javascript.NativeArray
+import org.mozilla.javascript.Scriptable
 
 /**
  * 阅读界面
@@ -249,6 +257,9 @@ class ReadBookActivity : BaseReadBookActivity(),
             binding.readMenu.upSeekBar()
         }
     }
+    private var reviewSummaryAppliedKey: String? = null
+    private var reviewSummaryLoadingKey: String? = null
+    private var reviewSummaryRequestToken: Long = 0
 
     //恢复跳转前进度对话框的交互结果
     private var confirmRestoreProcess: Boolean? = null
@@ -298,6 +309,7 @@ class ReadBookActivity : BaseReadBookActivity(),
     override fun onPostCreate(savedInstanceState: Bundle?) {
         super.onPostCreate(savedInstanceState)
         viewModel.initReadBookConfig(intent)
+        ChapterProvider.clearReviewProviders()
         Looper.myQueue().addIdleHandler {
             viewModel.initData(intent)
             false
@@ -431,11 +443,6 @@ class ReadBookActivity : BaseReadBookActivity(),
                 else -> when (item.itemId) {
                     R.id.menu_enable_replace -> item.isChecked = book.getUseReplaceRule()
                     R.id.menu_re_segment -> item.isChecked = book.getReSegment()
-//                    R.id.menu_enable_review -> {
-//                        item.isVisible = BuildConfig.DEBUG
-//                        item.isChecked = AppConfig.enableReview
-//                    }
-
                     R.id.menu_reverse_content -> item.isVisible = onLine
                     R.id.menu_del_ruby_tag -> item.isChecked = book.getDelTag(Book.rubyTag)
                     R.id.menu_del_h_tag -> item.isChecked = book.getDelTag(Book.hTag)
@@ -482,6 +489,7 @@ class ReadBookActivity : BaseReadBookActivity(),
                     upContent()
                 } else {
                     ReadBook.book?.let {
+                        resetReviewSummaryState()
                         ReadBook.curTextChapter = null
                         binding.readView.upContent()
                         viewModel.refreshContentDur(it)
@@ -494,6 +502,7 @@ class ReadBookActivity : BaseReadBookActivity(),
                     upContent()
                 } else {
                     ReadBook.book?.let {
+                        resetReviewSummaryState()
                         ReadBook.clearTextChapter()
                         binding.readView.upContent()
                         viewModel.refreshContentAfter(it)
@@ -532,12 +541,6 @@ class ReadBookActivity : BaseReadBookActivity(),
                 item.isChecked = it.getReSegment()
                 ReadBook.loadContent(false)
             }
-
-//            R.id.menu_enable_review -> {
-//                AppConfig.enableReview = !AppConfig.enableReview
-//                item.isChecked = AppConfig.enableReview
-//                ReadBook.loadContent(false)
-//            }
 
             R.id.menu_del_ruby_tag -> ReadBook.book?.let {
                 item.isChecked = !item.isChecked
@@ -628,9 +631,17 @@ class ReadBookActivity : BaseReadBookActivity(),
     }
 
     private fun refreshContentAll(book: Book) {
+        resetReviewSummaryState()
         ReadBook.clearTextChapter()
         binding.readView.upContent()
         viewModel.refreshContentAll(book)
+    }
+
+    private fun resetReviewSummaryState() {
+        reviewSummaryRequestToken++
+        reviewSummaryAppliedKey = null
+        reviewSummaryLoadingKey = null
+        ChapterProvider.clearReviewProviders()
     }
 
     override fun onMenuItemClick(item: MenuItem): Boolean {
@@ -997,6 +1008,7 @@ class ReadBookActivity : BaseReadBookActivity(),
             ReadBook.readAloud()
         }
         loadStates = true
+        loadReviewSummaryIfNeeded()
     }
 
     /**
@@ -1013,6 +1025,7 @@ class ReadBookActivity : BaseReadBookActivity(),
                 upSeekBarProgress()
             }
             loadStates = false
+            loadReviewSummaryIfNeeded()
             success?.invoke()
         }
     }
@@ -1027,6 +1040,7 @@ class ReadBookActivity : BaseReadBookActivity(),
             upSeekBarProgress()
         }
         loadStates = false
+        loadReviewSummaryIfNeeded()
     }
 
     override fun upPageAnim(upRecorder: Boolean) {
@@ -1445,6 +1459,219 @@ class ReadBookActivity : BaseReadBookActivity(),
             AppLog.put("执行图片链接click键值出错\n${it.localizedMessage}", it, true)
         }
         return true
+    }
+
+    override fun onReviewClick(paragraphNum: Int, count: Int) {
+        if (paragraphNum <= 0) return
+        if (count <= 0) {
+            toastOnUi("暂无段评")
+            return
+        }
+        val source = ReadBook.bookSource ?: return
+        val rule = source.ruleReview ?: run {
+            toastOnUi("未配置段评规则")
+            return
+        }
+        if (rule.reviewDetailUrl.isNullOrBlank()) {
+            toastOnUi("未配置段评详情URL")
+            return
+        }
+        if (rule.detailListRule.isNullOrBlank() || rule.detailContentRule.isNullOrBlank()) {
+            toastOnUi("未配置段评详情规则")
+            return
+        }
+        showDialogFragment(ReviewDetailDialog(paragraphNum, count))
+    }
+
+    private fun loadReviewSummaryIfNeeded() {
+        val source = ReadBook.bookSource ?: return
+        val reviewRule = source.ruleReview ?: run {
+            ChapterProvider.clearReviewProviders()
+            return
+        }
+        if (!reviewRule.enabled) {
+            ChapterProvider.clearReviewProviders()
+            return
+        }
+        val rule = reviewRule.reviewSummaryUrl?.takeIf { it.isNotBlank() } ?: run {
+            ChapterProvider.clearReviewProviders()
+            return
+        }
+        if (reviewRule.summaryListRule.isNullOrBlank() ||
+            reviewRule.summaryParagraphIndexRule.isNullOrBlank() ||
+            reviewRule.summaryCountRule.isNullOrBlank()
+        ) {
+            ChapterProvider.clearReviewProviders()
+            return
+        }
+        val book = ReadBook.book ?: return
+        val chapterIndex = ReadBook.durChapterIndex
+        val key = "${book.bookUrl}#$chapterIndex"
+        if (reviewSummaryAppliedKey == key || reviewSummaryLoadingKey == key) return
+        reviewSummaryLoadingKey = key
+        val requestToken = ++reviewSummaryRequestToken
+        if (reviewSummaryAppliedKey != key) {
+            ChapterProvider.clearReviewProviders()
+        }
+
+        Coroutine.async(lifecycleScope, IO) {
+            val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, chapterIndex) ?: return@async null
+            val analyzeUrl = AnalyzeUrl(
+                rule,
+                baseUrl = chapter.url,
+                source = source,
+                ruleData = book,
+                chapter = chapter,
+                coroutineContext = coroutineContext
+            )
+            val body = analyzeUrl.getStrResponseAwait(useWebView = false).body
+            parseReviewSummary(
+                body,
+                reviewRule,
+                source,
+                book,
+                chapter,
+                analyzeUrl.url,
+                coroutineContext
+            )
+        }.onSuccess(Main) { result ->
+            if (requestToken != reviewSummaryRequestToken) return@onSuccess
+            val curBook = ReadBook.book ?: return@onSuccess
+            val curKey = "${curBook.bookUrl}#${ReadBook.durChapterIndex}"
+            if (curKey != key) return@onSuccess
+            reviewSummaryLoadingKey = null
+            val counts = result?.counts ?: emptyMap()
+            val keys = result?.keys ?: emptyMap()
+            ChapterProvider.setReviewProviders(
+                countProvider = { counts[it] ?: 0 },
+                keyProvider = { keys[it] }
+            )
+            reviewSummaryAppliedKey = key
+            ReadBook.loadContent(resetPageOffset = false)
+        }.onError {
+            if (requestToken != reviewSummaryRequestToken) return@onError
+            val curBook = ReadBook.book
+            val curKey = curBook?.let { "${it.bookUrl}#${ReadBook.durChapterIndex}" }
+            if (curKey != key) return@onError
+            reviewSummaryLoadingKey = null
+            ChapterProvider.clearReviewProviders()
+            AppLog.put("加载段评统计出错\n${it.localizedMessage}", it)
+        }
+    }
+
+    private data class ReviewSummaryResult(
+        val counts: Map<Int, Int>,
+        val keys: Map<Int, String>
+    )
+
+    private fun parseReviewSummary(
+        body: String?,
+        rule: ReviewRule?,
+        source: BaseSource,
+        book: Book,
+        chapter: BookChapter,
+        baseUrl: String,
+        context: CoroutineContext
+    ): ReviewSummaryResult? {
+        if (body.isNullOrBlank()) return null
+        if (rule == null) return null
+        return parseReviewSummaryByRule(body, rule, source, book, chapter, baseUrl, context)
+    }
+
+    private fun parseReviewSummaryByRule(
+        body: String,
+        rule: ReviewRule,
+        source: BaseSource,
+        book: Book,
+        chapter: BookChapter,
+        baseUrl: String,
+        context: CoroutineContext
+    ): ReviewSummaryResult? {
+        val listRule = rule.summaryListRule?.trim().orEmpty()
+        val indexRule = rule.summaryParagraphIndexRule?.trim().orEmpty()
+        if (listRule.isEmpty() || indexRule.isEmpty()) return null
+        val analyzeRule = AnalyzeRule(book, source)
+            .setChapter(chapter)
+            .setCoroutineContext(context)
+            .setContent(body, baseUrl)
+        val hasJs = AppPattern.JS_PATTERN.matcher(listRule).find()
+        val list = runCatching { analyzeRule.getElements(listRule) }.getOrElse { emptyList() }
+        val finalList = if (list.isEmpty() && !hasJs) {
+            evalSummaryListByJs(analyzeRule, listRule) ?: list
+        } else {
+            list
+        }
+        if (finalList.isEmpty()) return ReviewSummaryResult(emptyMap(), emptyMap())
+        val countMap = HashMap<Int, Int>()
+        val keyMap = HashMap<Int, String>()
+        val countRule = rule.summaryCountRule?.trim().orEmpty()
+        val dataRule = rule.summaryParagraphDataRule?.trim().orEmpty()
+        val itemRule = AnalyzeRule(book, source)
+            .setChapter(chapter)
+            .setCoroutineContext(context)
+        for ((idx, item) in finalList.withIndex()) {
+            itemRule.setContent(item, baseUrl)
+            val idStr = itemRule.getString(indexRule).takeIf { it.isNotBlank() }
+            val paragraphId = idStr?.toIntOrNull()
+                ?: idStr?.toDoubleOrNull()?.toInt()
+                ?: (idx + 1)
+            val count = if (countRule.isNotEmpty()) {
+                val countStr = itemRule.getString(countRule).takeIf { it.isNotBlank() }
+                countStr?.toIntOrNull() ?: countStr?.toDoubleOrNull()?.toInt() ?: 0
+            } else {
+                0
+            }
+            if (count > 0 && paragraphId != 0) {
+                countMap[paragraphId] = count
+                val rawKey = if (dataRule.isNotEmpty()) {
+                    itemRule.getString(dataRule).takeIf { it.isNotBlank() }
+                } else {
+                    idStr
+                }
+                val keyValue = rawKey?.takeIf { it.isNotBlank() }
+                    ?: idStr?.takeIf { it.isNotBlank() }
+                    ?: paragraphId.toString()
+                keyMap[paragraphId] = keyValue
+            }
+        }
+        return ReviewSummaryResult(countMap, keyMap)
+    }
+
+    private fun evalSummaryListByJs(
+        analyzeRule: AnalyzeRule,
+        listRule: String
+    ): List<Any>? {
+        val matcher = AppPattern.JS_PATTERN.matcher(listRule)
+        if (!matcher.find()) return null
+        val js = matcher.group(1) ?: matcher.group(2) ?: return null
+        val result = analyzeRule.evalJS(js)
+        return toAnyList(result)
+    }
+
+    private fun toAnyList(result: Any?): List<Any> {
+        return when (result) {
+            is List<*> -> result.filterNotNull()
+            is Array<*> -> result.filterNotNull().toList()
+            is NativeArray -> {
+                val list = ArrayList<Any>()
+                val size = result.length.toInt()
+                for (i in 0 until size) {
+                    val value = result.get(i, result)
+                    if (value != null && value != Scriptable.NOT_FOUND) {
+                        list.add(value)
+                    }
+                }
+                list
+            }
+            is String -> {
+                if (result.isJson()) {
+                    AnalyzeByJSonPath(result).getList("$") ?: emptyList()
+                } else {
+                    emptyList()
+                }
+            }
+            else -> emptyList()
+        }
     }
 
     /**
