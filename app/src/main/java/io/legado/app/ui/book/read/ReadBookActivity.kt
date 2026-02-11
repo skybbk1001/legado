@@ -143,8 +143,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.mozilla.javascript.NativeArray
-import org.mozilla.javascript.Scriptable
+import org.htmlunit.corejs.javascript.NativeArray
+import org.htmlunit.corejs.javascript.Scriptable
 
 /**
  * 阅读界面

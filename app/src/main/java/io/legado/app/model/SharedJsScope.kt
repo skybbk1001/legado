@@ -15,8 +15,8 @@ import io.legado.app.utils.isJsonObject
 import io.legado.app.constant.AppLog
 import io.legado.app.model.Debug
 import kotlinx.coroutines.runBlocking
-import org.mozilla.javascript.Scriptable
-import org.mozilla.javascript.ScriptableObject
+import org.htmlunit.corejs.javascript.Scriptable
+import org.htmlunit.corejs.javascript.ScriptableObject
 import splitties.init.appCtx
 import java.io.File
 import java.lang.ref.WeakReference

@@ -3,7 +3,7 @@ package com.script.rhino
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.supervisorScope
-import org.mozilla.javascript.Context
+import org.htmlunit.corejs.javascript.Context
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract

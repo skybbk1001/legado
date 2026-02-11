@@ -35,18 +35,18 @@ import com.script.ScriptException
 import com.script.SimpleBindings
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
-import org.mozilla.javascript.Callable
-import org.mozilla.javascript.ConsString
-import org.mozilla.javascript.Context
-import org.mozilla.javascript.ContextFactory
-import org.mozilla.javascript.ContinuationPending
-import org.mozilla.javascript.Function
-import org.mozilla.javascript.JavaScriptException
-import org.mozilla.javascript.RhinoException
-import org.mozilla.javascript.Scriptable
-import org.mozilla.javascript.ScriptableObject
-import org.mozilla.javascript.Undefined
-import org.mozilla.javascript.Wrapper
+import org.htmlunit.corejs.javascript.Callable
+import org.htmlunit.corejs.javascript.ConsString
+import org.htmlunit.corejs.javascript.Context
+import org.htmlunit.corejs.javascript.ContextFactory
+import org.htmlunit.corejs.javascript.ContinuationPending
+import org.htmlunit.corejs.javascript.Function
+import org.htmlunit.corejs.javascript.JavaScriptException
+import org.htmlunit.corejs.javascript.RhinoException
+import org.htmlunit.corejs.javascript.Scriptable
+import org.htmlunit.corejs.javascript.ScriptableObject
+import org.htmlunit.corejs.javascript.Undefined
+import org.htmlunit.corejs.javascript.Wrapper
 import java.io.IOException
 import java.io.Reader
 import java.io.StringReader
@@ -72,6 +72,7 @@ object RhinoScriptEngine : AbstractScriptEngine(), Invocable, Compilable {
     private var topLevel: RhinoTopLevel? = null
     private val indexedProps: MutableMap<Any, Any?>
     private val implementor: InterfaceImplementor
+    private val emptyArgs: Array<Any?> = emptyArray()
 
     fun eval(js: String, bindingsConfig: ScriptBindings.() -> Unit = {}): Any? {
         val bindings = ScriptBindings()
@@ -293,7 +294,7 @@ object RhinoScriptEngine : AbstractScriptEngine(), Invocable, Compilable {
 
     fun wrapArguments(args: Array<Any?>?): Array<Any?> {
         return if (args == null) {
-            Context.emptyArgs
+            emptyArgs
         } else {
             val res = arrayOfNulls<Any>(args.size)
             for (i in res.indices) {

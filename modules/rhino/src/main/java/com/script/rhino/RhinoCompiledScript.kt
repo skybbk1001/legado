@@ -29,12 +29,12 @@ import com.script.ScriptEngine
 import com.script.ScriptException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
-import org.mozilla.javascript.Context
-import org.mozilla.javascript.ContinuationPending
-import org.mozilla.javascript.JavaScriptException
-import org.mozilla.javascript.RhinoException
-import org.mozilla.javascript.Script
-import org.mozilla.javascript.Scriptable
+import org.htmlunit.corejs.javascript.Context
+import org.htmlunit.corejs.javascript.ContinuationPending
+import org.htmlunit.corejs.javascript.JavaScriptException
+import org.htmlunit.corejs.javascript.RhinoException
+import org.htmlunit.corejs.javascript.Script
+import org.htmlunit.corejs.javascript.Scriptable
 import java.io.IOException
 import kotlin.coroutines.CoroutineContext
 
@@ -64,6 +64,7 @@ internal class RhinoCompiledScript(
         val result: Any?
         try {
             cx.checkRecursive()
+            @Suppress("DEPRECATION")
             val ret = script.exec(cx, scope)
             result = engine.unwrapReturnValue(ret)
         } catch (re: RhinoException) {

@@ -1,9 +1,9 @@
 package com.script.rhino
 
-import org.mozilla.javascript.NativeJavaObject
-import org.mozilla.javascript.Scriptable
-import org.mozilla.javascript.lc.type.TypeInfo
-import org.mozilla.javascript.lc.type.TypeInfoFactory
+import org.htmlunit.corejs.javascript.NativeJavaObject
+import org.htmlunit.corejs.javascript.Scriptable
+import org.htmlunit.corejs.javascript.lc.type.TypeInfo
+import org.htmlunit.corejs.javascript.lc.type.TypeInfoFactory
 
 class ReadOnlyJavaObject(scope: Scriptable?, javaObject: Any, staticType: Class<*>?) :
     NativeJavaObject(scope, javaObject, staticType.toTypeInfo()) {

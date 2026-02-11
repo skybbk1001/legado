@@ -1,7 +1,7 @@
 package com.script.rhino
 
 import kotlinx.coroutines.ThreadContextElement
-import org.mozilla.javascript.Context
+import org.htmlunit.corejs.javascript.Context
 import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlin.coroutines.CoroutineContext
 
@@ -13,6 +13,7 @@ internal class RhinoContextElement(private val cx: Context) :
         val current = Context.getCurrentContext()
         return when {
             current == null -> {
+                @Suppress("DEPRECATION")
                 Context.enter(cx)
                 true
             }
@@ -21,8 +22,8 @@ internal class RhinoContextElement(private val cx: Context) :
         }
     }
 
-    override fun restoreThreadContext(context: CoroutineContext, entered: Boolean) {
-        if (entered) {
+    override fun restoreThreadContext(context: CoroutineContext, oldState: Boolean) {
+        if (oldState) {
             Context.exit()
         }
     }
