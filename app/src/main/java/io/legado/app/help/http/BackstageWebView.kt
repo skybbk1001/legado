@@ -6,8 +6,10 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.AndroidRuntimeException
+import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
 import android.webkit.SslErrorHandler
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -16,6 +18,7 @@ import io.legado.app.constant.AppConst
 import io.legado.app.exception.NoStackTraceException
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.coroutine.Coroutine
+import io.legado.app.model.Debug
 import io.legado.app.utils.runOnUI
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Runnable
@@ -114,6 +117,16 @@ class BackstageWebView(
         settings.blockNetworkImage = true
         settings.userAgentString = headerMap?.get(AppConst.UA_NAME) ?: AppConfig.userAgent
         settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+        if (!tag.isNullOrBlank()) {
+            webView.webChromeClient = object : WebChromeClient() {
+                override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
+                    val level = consoleMessage.messageLevel().name
+                    val message = consoleMessage.message()
+                    Debug.log(tag, "$level: $message", true)
+                    return true
+                }
+            }
+        }
         if (sourceRegex.isNullOrBlank() && overrideUrlRegex.isNullOrBlank()) {
             webView.webViewClient = HtmlWebViewClient()
         } else {
