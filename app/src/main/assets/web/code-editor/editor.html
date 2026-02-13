@@ -1358,6 +1358,18 @@
               body: tagMatch[1],
             };
           }
+          const tagTailMatch = trimmed.match(
+            /^<js>\s*([\s\S]*?)\s*<\/js>([\s\S]+)$/i,
+          );
+          if (tagTailMatch) {
+            return {
+              type: "tag-tail",
+              open: "<js>",
+              close: "</js>",
+              body: tagTailMatch[1],
+              tail: tagTailMatch[2],
+            };
+          }
           const braceMatch = trimmed.match(/^\{\{\s*([\s\S]*?)\s*\}\}$/);
           if (braceMatch) {
             return { type: "moustache", body: braceMatch[1] };
@@ -1372,15 +1384,28 @@
             };
           }
           const mixedTagMatch = trimmed.match(
-            /^([\s\S]*?\n)<js>\s*([\s\S]*?)\s*<\/js>$/i,
+            /^([\s\S]*?)<js>\s*([\s\S]*?)\s*<\/js>$/i,
           );
-          if (mixedTagMatch) {
+          if (mixedTagMatch && mixedTagMatch[1].length > 0) {
             return {
               type: "mixed-tag",
               header: mixedTagMatch[1],
               open: "<js>",
               close: "</js>",
               body: mixedTagMatch[2],
+            };
+          }
+          const mixedTagTailMatch = trimmed.match(
+            /^([\s\S]*?)<js>\s*([\s\S]*?)\s*<\/js>([\s\S]+)$/i,
+          );
+          if (mixedTagTailMatch && mixedTagTailMatch[1].length > 0) {
+            return {
+              type: "mixed-tag-tail",
+              header: mixedTagTailMatch[1],
+              open: "<js>",
+              close: "</js>",
+              body: mixedTagTailMatch[2],
+              tail: mixedTagTailMatch[3],
             };
           }
           return null;
@@ -1441,6 +1466,14 @@
               } else if (wrapper.type === "tag") {
                 formattedBody =
                   wrapper.open + "\n" + formattedBody + "\n" + wrapper.close;
+              } else if (wrapper.type === "tag-tail") {
+                formattedBody =
+                  wrapper.open +
+                  "\n" +
+                  formattedBody +
+                  "\n" +
+                  wrapper.close +
+                  wrapper.tail;
               } else if (wrapper.type === "moustache") {
                 formattedBody = "{{\n" + formattedBody + "\n}}";
               } else if (wrapper.type === "mixed") {
@@ -1454,6 +1487,15 @@
                   formattedBody +
                   "\n" +
                   wrapper.close;
+              } else if (wrapper.type === "mixed-tag-tail") {
+                formattedBody =
+                  wrapper.header +
+                  wrapper.open +
+                  "\n" +
+                  formattedBody +
+                  "\n" +
+                  wrapper.close +
+                  wrapper.tail;
               }
             } else {
               if (/^[\[{]/.test(text)) {
@@ -1774,11 +1816,19 @@
             const m = raw.match(/^(\s*<js>\s*)/i);
             return m ? m[1].split("\n").length - 1 : 0;
           }
+          if (wrapper.type === "tag-tail") {
+            const m = raw.match(/^(\s*<js>\s*)/i);
+            return m ? m[1].split("\n").length - 1 : 0;
+          }
           if (wrapper.type === "moustache") {
             const m = raw.match(/^(\s*\{\{\s*)/);
             return m ? m[1].split("\n").length - 1 : 0;
           }
-          if (wrapper.type === "mixed" || wrapper.type === "mixed-tag") {
+          if (
+            wrapper.type === "mixed" ||
+            wrapper.type === "mixed-tag" ||
+            wrapper.type === "mixed-tag-tail"
+          ) {
             const idx = raw.indexOf(wrapper.body);
             if (idx > 0) return raw.slice(0, idx).split("\n").length - 1;
           }
