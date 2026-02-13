@@ -231,6 +231,29 @@
       opacity: 1;
     }
 
+    #syntax-status {
+      padding: 4px 10px;
+      font-size: 12px;
+      border-top: 1px solid var(--border);
+      background: var(--toolbar-bg);
+      color: var(--gutter-text);
+      cursor: default;
+      flex-shrink: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: none;
+    }
+
+    #syntax-status.error {
+      color: #e06c75;
+      cursor: pointer;
+    }
+
+    #syntax-status.ok {
+      color: #98c379;
+    }
+
     #log-panel {
       position: absolute;
       left: 8px;
@@ -435,6 +458,8 @@
     <div id="editor"></div>
   </div>
 
+  <div id="syntax-status"></div>
+
   <div id="toast"></div>
 
   <script>
@@ -517,6 +542,8 @@
         const SETTINGS_KEY = "legado.codeEditor.formatSettings";
         const TOAST_MS = 1500;
         const LONG_LINE_SCROLL_LIMIT = 2000;
+        const LINT_DELAY = 800;
+        const LINT_MAX_SIZE = 50000;
 
         const dom = {
           editorHost: $("editor"),
@@ -550,6 +577,7 @@
           singleQuoteToggle: $("singleQuoteToggle"),
           trailingCommaToggle: $("trailingCommaToggle"),
           formatOptions: $("format-options"),
+          syntaxStatus: $("syntax-status"),
         };
 
         const CM = window.CodeMirrorBundle;
@@ -720,13 +748,16 @@
               },
               ".cm-content": {
                 padding: "10px",
-                maxWidth: "100%",
+                maxWidth: "none",
                 overflowWrap: "anywhere",
               },
               ".cm-gutters": {
                 backgroundColor: "var(--gutter-bg)",
                 color: "var(--gutter-text)",
                 borderRight: "1px solid var(--border)",
+                "-webkit-user-select": "none",
+                userSelect: "none",
+                contain: "layout style paint",
               },
               ".cm-activeLine": { backgroundColor: "var(--active-line)" },
               ".cm-selectionBackground": {
@@ -772,6 +803,17 @@
           }
         }
 
+        function makeWrapExtensions(wrap) {
+          const exts = [];
+          if (wrap && EditorView.lineWrapping) exts.push(EditorView.lineWrapping);
+          exts.push(
+            EditorView.theme({
+              ".cm-content": { paddingRight: wrap ? "10px" : "40px" },
+            }),
+          );
+          return exts;
+        }
+
         function insertTab(view) {
           if (indentMore && !view.state.selection.main.empty) {
             return indentMore(view);
@@ -784,7 +826,11 @@
           const { state } = view;
           const { from, to, head } = state.selection.main;
           const line = state.doc.lineAt(head);
+          const trimmedLine = line.text.trim();
+          const isWrapperLine =
+            /^@js:\s*$/.test(trimmedLine) || /^<js>\s*$/i.test(trimmedLine);
           if (
+            !isWrapperLine &&
             line.length < LONG_LINE_SCROLL_LIMIT &&
             typeof insertNewlineAndIndent === "function"
           ) {
@@ -798,30 +844,24 @@
             selection: { anchor: cursor, head: cursor },
             effects: EditorView.scrollIntoView(cursor, { y: "nearest" }),
           });
-          const target = cursor;
-          const editorView = view;
           view.requestMeasure({
-            read(view) {
-              const coords = view.coordsAtPos(target);
+            read() {
+              const coords = view.coordsAtPos(cursor);
               const rect = view.scrollDOM.getBoundingClientRect();
-              return {
-                coords,
-                rect,
-                scrollTop: view.scrollDOM.scrollTop,
-              };
+              return { coords, rect };
             },
-            write(view, data) {
-              const lineLen = editorView.state.doc.lineAt(target).length;
+            write(_v, data) {
+              const lineLen = view.state.doc.lineAt(cursor).length;
               if (!data || !data.coords) {
                 if (lineLen >= LONG_LINE_SCROLL_LIMIT) {
                   requestAnimationFrame(() => {
-                    editorView.scrollDOM.scrollTop =
-                      editorView.scrollDOM.scrollHeight;
+                    view.scrollDOM.scrollTop =
+                      view.scrollDOM.scrollHeight;
                   });
                 } else {
                   requestAnimationFrame(() => {
-                    editorView.dispatch({
-                      effects: EditorView.scrollIntoView(target, {
+                    view.dispatch({
+                      effects: EditorView.scrollIntoView(cursor, {
                         y: "nearest",
                       }),
                     });
@@ -832,8 +872,8 @@
               const { coords, rect } = data;
               if (coords.top < rect.top || coords.bottom > rect.bottom) {
                 requestAnimationFrame(() => {
-                  editorView.dispatch({
-                    effects: EditorView.scrollIntoView(target, {
+                  view.dispatch({
+                    effects: EditorView.scrollIntoView(cursor, {
                       y: "nearest",
                     }),
                   });
@@ -853,9 +893,9 @@
             : {};
         const completionRegex = (() => {
           const keys = Object.keys(CUSTOM_COMPLETIONS);
-          return keys.length
-            ? new RegExp(`^(${keys.join("|")})\\.([\\w]*)$`)
-            : null;
+          if (!keys.length) return null;
+          const escaped = keys.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+          return new RegExp(`^(${escaped.join("|")})\\.([\\w]*)$`);
         })();
 
         function customCompletion(context) {
@@ -1032,7 +1072,8 @@
               t.indexOf("--data-binary=") === 0 ||
               t.indexOf("--data-urlencode=") === 0
             ) {
-              dataParts.push(t.split("=", 2)[1] || "");
+              const eqIdx = t.indexOf("=");
+              dataParts.push(eqIdx >= 0 ? t.slice(eqIdx + 1) : "");
               if (!method) method = "POST";
               continue;
             }
@@ -1172,7 +1213,7 @@
             exts.push(highlightActiveLineGutter());
           if (typeof foldGutter === "function") exts.push(foldGutter());
           if (wrapComp && EditorView && EditorView.lineWrapping)
-            exts.push(wrapComp.of(isWrap ? EditorView.lineWrapping : []));
+            exts.push(wrapComp.of(makeWrapExtensions(isWrap)));
           if (
             indentComp &&
             indentUnit &&
@@ -1219,6 +1260,13 @@
             );
           }
           exts.push(...buildAutocompleteExtensions());
+          exts.push(
+            EditorView.updateListener.of((update) => {
+              if (!update.docChanged) return;
+              clearTimeout(lintTimer);
+              lintTimer = setTimeout(checkSyntax, LINT_DELAY);
+            }),
+          );
           if (themeComp) exts.push(themeComp.of(makeTheme()));
           if (fontComp) exts.push(fontComp.of(makeFontTheme()));
           return exts;
@@ -1235,12 +1283,14 @@
             }),
             parent: dom.editorHost,
           });
-          const focusNoScroll = () => {
+          const focusNoScroll = (e) => {
             if (!view || !view.contentDOM) return;
-            if (typeof view.contentDOM.focus !== "function") return;
+            if (view.hasFocus) return;
+            const target = e.target instanceof Element ? e.target : null;
+            if (target && target.closest(".cm-gutters")) return;
             try {
               view.contentDOM.focus({ preventScroll: true });
-            } catch (e) {
+            } catch (ex) {
               view.contentDOM.focus();
             }
           };
@@ -1248,13 +1298,10 @@
             capture: true,
             passive: true,
           });
-          dom.editorHost.addEventListener("touchstart", focusNoScroll, {
-            capture: true,
-            passive: true,
-          });
           applyTabSize(tabSize);
           applyFontSize(fontSize);
           applyTheme(themeMode);
+          dom.wrapBtn.classList.toggle("active", isWrap);
         } catch (e) {
           appendLog("error", e && e.message ? e.message : e);
           bootError("编辑器初始化失败: " + (e && e.message ? e.message : e));
@@ -1315,6 +1362,27 @@
           if (braceMatch) {
             return { type: "moustache", body: braceMatch[1] };
           }
+          const mixedJsMatch = raw.match(/^([\s\S]*?\n)@js:\s*[\r\n]?([\s\S]*)$/);
+          if (mixedJsMatch) {
+            return {
+              type: "mixed",
+              header: mixedJsMatch[1],
+              prefix: "@js:",
+              body: mixedJsMatch[2] || "",
+            };
+          }
+          const mixedTagMatch = trimmed.match(
+            /^([\s\S]*?\n)<js>\s*([\s\S]*?)\s*<\/js>$/i,
+          );
+          if (mixedTagMatch) {
+            return {
+              type: "mixed-tag",
+              header: mixedTagMatch[1],
+              open: "<js>",
+              close: "</js>",
+              body: mixedTagMatch[2],
+            };
+          }
           return null;
         }
 
@@ -1357,6 +1425,10 @@
           const raw = getCode();
           const text = raw.trim();
           if (!text) return;
+          if (!window.prettier || !getPrettierPlugins()) {
+            showToast("Prettier 未加载");
+            return;
+          }
           showToast("格式化中...");
           await new Promise(requestAnimationFrame);
           try {
@@ -1371,6 +1443,17 @@
                   wrapper.open + "\n" + formattedBody + "\n" + wrapper.close;
               } else if (wrapper.type === "moustache") {
                 formattedBody = "{{\n" + formattedBody + "\n}}";
+              } else if (wrapper.type === "mixed") {
+                formattedBody =
+                  wrapper.header + wrapper.prefix + "\n" + formattedBody;
+              } else if (wrapper.type === "mixed-tag") {
+                formattedBody =
+                  wrapper.header +
+                  wrapper.open +
+                  "\n" +
+                  formattedBody +
+                  "\n" +
+                  wrapper.close;
               }
             } else {
               if (/^[\[{]/.test(text)) {
@@ -1404,9 +1487,7 @@
         bindClick(wrapBtn, () => {
           isWrap = !isWrap;
           view.dispatch({
-            effects: wrapComp.reconfigure(
-              isWrap ? EditorView.lineWrapping : [],
-            ),
+            effects: wrapComp.reconfigure(makeWrapExtensions(isWrap)),
           });
           wrapBtn.classList.toggle("active", isWrap);
           saveSettings();
@@ -1612,18 +1693,7 @@
             return;
           }
           try {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-              await navigator.clipboard.writeText(text);
-            } else {
-              const ta = document.createElement("textarea");
-              ta.value = text;
-              ta.style.position = "fixed";
-              ta.style.left = "-9999px";
-              document.body.appendChild(ta);
-              ta.select();
-              document.execCommand("copy");
-              document.body.removeChild(ta);
-            }
+            await copyToClipboard(text);
             showToast("已复制");
           } catch (e) {
             appendLog(
@@ -1653,18 +1723,7 @@
             return;
           }
           try {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-              await navigator.clipboard.writeText(text);
-            } else {
-              const ta = document.createElement("textarea");
-              ta.value = text;
-              ta.style.position = "fixed";
-              ta.style.left = "-9999px";
-              document.body.appendChild(ta);
-              ta.select();
-              document.execCommand("copy");
-              document.body.removeChild(ta);
-            }
+            await copyToClipboard(text);
             showToast("日志已复制");
           } catch (e) {
             appendLog("error", "复制失败: " + (e && e.message ? e.message : e));
@@ -1685,6 +1744,122 @@
             () => dom.toast.classList.remove("show"),
             TOAST_MS,
           );
+        }
+
+        async function copyToClipboard(text) {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+          } else {
+            const ta = document.createElement("textarea");
+            ta.value = text;
+            ta.style.position = "fixed";
+            ta.style.left = "-9999px";
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand("copy");
+            document.body.removeChild(ta);
+          }
+        }
+
+        let lintTimer = null;
+        let lintVersion = 0;
+
+        function getBodyLineOffset(raw, wrapper) {
+          if (!wrapper) return 0;
+          if (wrapper.type === "prefix") {
+            const m = raw.match(/^(\s*@js:\s*[\r\n]?)/);
+            return m ? m[1].split("\n").length - 1 : 0;
+          }
+          if (wrapper.type === "tag") {
+            const m = raw.match(/^(\s*<js>\s*)/i);
+            return m ? m[1].split("\n").length - 1 : 0;
+          }
+          if (wrapper.type === "moustache") {
+            const m = raw.match(/^(\s*\{\{\s*)/);
+            return m ? m[1].split("\n").length - 1 : 0;
+          }
+          if (wrapper.type === "mixed" || wrapper.type === "mixed-tag") {
+            const idx = raw.indexOf(wrapper.body);
+            if (idx > 0) return raw.slice(0, idx).split("\n").length - 1;
+          }
+          return 0;
+        }
+
+        function showSyntaxOk() {
+          dom.syntaxStatus.style.display = "block";
+          dom.syntaxStatus.className = "ok";
+          dom.syntaxStatus.textContent = "\u2713 \u8BED\u6CD5\u6B63\u786E";
+          dom.syntaxStatus.onclick = null;
+        }
+
+        function showSyntaxError(msg, errorLine, errorCol) {
+          dom.syntaxStatus.style.display = "block";
+          dom.syntaxStatus.className = "error";
+          const first = String(msg).split("\n")[0];
+          const display = first
+            .replace(/^SyntaxError:\s*/, "")
+            .replace(/\s*\(\d+:\d+\)\s*$/, "")
+            .trim();
+          dom.syntaxStatus.textContent = errorLine
+            ? "\u2717 \u7B2C " + errorLine + " \u884C: " + display
+            : "\u2717 " + display;
+          if (errorLine && view) {
+            dom.syntaxStatus.onclick = () => {
+              const line = view.state.doc.line(
+                Math.min(errorLine, view.state.doc.lines),
+              );
+              const pos = line.from + Math.min((errorCol || 1) - 1, line.length);
+              view.dispatch({
+                selection: { anchor: pos, head: pos },
+                effects: EditorView.scrollIntoView(pos, { y: "center" }),
+              });
+              view.focus();
+            };
+          } else {
+            dom.syntaxStatus.onclick = null;
+          }
+        }
+
+        async function checkSyntax() {
+          if (!window.prettier || !getPrettierPlugins()) return;
+          const raw = getCode();
+          const text = raw.trim();
+          if (!text) {
+            dom.syntaxStatus.style.display = "none";
+            return;
+          }
+          const version = ++lintVersion;
+          const wrapper = detectWrapper(raw);
+          const body = wrapper ? wrapper.body : text;
+          if (body.length > LINT_MAX_SIZE) {
+            dom.syntaxStatus.style.display = "none";
+            return;
+          }
+          const lineOffset = getBodyLineOffset(raw, wrapper);
+
+          if (!wrapper && /^[\[{]/.test(text)) {
+            try {
+              JSON.parse(text);
+              if (version === lintVersion) showSyntaxOk();
+              return;
+            } catch (e) { /* try as JS below */ }
+          }
+
+          try {
+            await window.prettier.format(body, {
+              parser: "babel",
+              plugins: getPrettierPlugins(),
+              tabWidth: tabSize,
+            });
+            if (version === lintVersion) showSyntaxOk();
+          } catch (e) {
+            if (version !== lintVersion) return;
+            const msg = e && e.message ? e.message : String(e);
+            const m = msg.match(/\((\d+):(\d+)\)/);
+            const errorLine = m ? parseInt(m[1], 10) + lineOffset : null;
+            const errorCol = m ? parseInt(m[2], 10) : null;
+            showSyntaxError(msg, errorLine, errorCol);
+          }
         }
 
         function b64ToUtf8(b64) {
@@ -1726,6 +1901,8 @@
 
         window.setCodeFromAndroid = function (b64) {
           resetDoc(b64ToUtf8(b64), { addToHistory: false });
+          clearTimeout(lintTimer);
+          lintTimer = setTimeout(checkSyntax, LINT_DELAY);
         };
 
         window.__save = function () {

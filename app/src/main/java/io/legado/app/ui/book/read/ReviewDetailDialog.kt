@@ -18,6 +18,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.flexbox.FlexboxLayout
 import io.legado.app.R
 import io.legado.app.base.BaseDialogFragment
+import io.legado.app.constant.AppLog
 import io.legado.app.base.adapter.ItemViewHolder
 import io.legado.app.base.adapter.RecyclerAdapter
 import io.legado.app.data.appDb
@@ -491,7 +492,10 @@ class ReviewDetailDialog() : BaseDialogFragment(R.layout.dialog_recycler_view) {
             .setLocal("paraIndex", paraIndex)
             .setLocal("paraData", paraData)
             .setLocal("page", page)
-        val list = runCatching { analyzeRule.getElements(listRule) }.getOrElse { emptyList() }
+        val list = runCatching { analyzeRule.getElements(listRule) }.getOrElse {
+            AppLog.put("段评详情列表规则执行出错\n${it.localizedMessage}", it)
+            emptyList()
+        }
         val nextPageUrl = if (!nextPageRule.isNullOrBlank()) {
             val raw = safeRuleString(analyzeRule, nextPageRule)?.trim().orEmpty()
             when {
@@ -620,6 +624,7 @@ class ReviewDetailDialog() : BaseDialogFragment(R.layout.dialog_recycler_view) {
         val r = rule?.trim().orEmpty()
         if (r.isEmpty()) return null
         return runCatching { analyzeRule.getString(r) }
+            .onFailure { AppLog.put("段评规则执行出错: $r\n${it.localizedMessage}", it) }
             .getOrDefault("")
             .takeIf { it.isNotBlank() }
     }
@@ -629,11 +634,15 @@ class ReviewDetailDialog() : BaseDialogFragment(R.layout.dialog_recycler_view) {
         if (r.isEmpty()) return emptyList()
         val fromList = runCatching {
             analyzeRule.getStringList(r).orEmpty()
+        }.onFailure {
+            AppLog.put("段评规则执行出错: $r\n${it.localizedMessage}", it)
         }.getOrDefault(emptyList())
         if (fromList.isNotEmpty()) {
             return fromList.flatMap { splitBadgeValue(it) }.distinct()
         }
-        val fromString = runCatching { analyzeRule.getString(r) }.getOrDefault("")
+        val fromString = runCatching { analyzeRule.getString(r) }
+            .onFailure { AppLog.put("段评规则执行出错: $r\n${it.localizedMessage}", it) }
+            .getOrDefault("")
         return splitBadgeValue(fromString).distinct()
     }
 

@@ -69,7 +69,7 @@ import org.htmlunit.corejs.javascript.Function
  * @since 1.6
  */
 @Suppress("unused", "UNUSED_PARAMETER")
-class JSAdapter private constructor(var adaptee: Scriptable) : Scriptable, Function {
+class JSAdapter private constructor(val adaptee: Scriptable) : Scriptable, Function {
     private var prototype: Scriptable? = null
     private var parent: Scriptable? = null
     private var isPrototype = false
@@ -181,32 +181,22 @@ class JSAdapter private constructor(var adaptee: Scriptable) : Scriptable, Funct
         return if (func == null) {
             adaptee.ids
         } else {
-            val val1 = this.call(func, arrayOfNulls(0))
-            val res: Array<Any?>
-            when (val1) {
+            when (val result = this.call(func, EMPTY_ARGS)) {
                 is NativeArray -> {
-                    res = arrayOfNulls(val1.length.toInt())
-                    for (index in res.indices) {
-                        res[index] = mapToId(val1[index, val1])
+                    Array(result.length.toInt()) { i ->
+                        mapToId(result[i, result])
                     }
-                    res
                 }
-                !is NativeJavaArray -> {
-                    EMPTY_ARGS
-                }
-                else -> {
-                    val tmp = val1.unwrap()
-                    if (tmp.javaClass == Array<Any>::class.java) {
-                        val array = tmp as Array<*>
-                        res = arrayOfNulls(array.size)
-                        for (index in array.indices) {
-                            res[index] = mapToId(array[index])
-                        }
+                is NativeJavaArray -> {
+                    val unwrapped = result.unwrap()
+                    if (unwrapped.javaClass == Array<Any>::class.java) {
+                        val array = unwrapped as Array<*>
+                        Array(array.size) { i -> mapToId(array[i]) }
                     } else {
-                        res = EMPTY_ARGS
+                        EMPTY_ARGS
                     }
-                    res
                 }
+                else -> EMPTY_ARGS
             }
         }
     }
@@ -235,9 +225,9 @@ class JSAdapter private constructor(var adaptee: Scriptable) : Scriptable, Funct
         return if (isPrototype) {
             construct(cx, scope, args)
         } else {
-            val tmp = adaptee
-            if (tmp is Function) {
-                tmp.call(cx, scope, tmp, args)
+            val target = adaptee
+            if (target is Function) {
+                target.call(cx, scope, target, args)
             } else {
                 throw Context.reportRuntimeError("TypeError: not a function")
             }
@@ -246,31 +236,30 @@ class JSAdapter private constructor(var adaptee: Scriptable) : Scriptable, Funct
 
     @Throws(RhinoException::class)
     override fun construct(cx: Context, scope: Scriptable, args: Array<Any>): Scriptable {
-        val tmp: Scriptable?
         return if (isPrototype) {
-            tmp = ScriptableObject.getTopLevelScope(scope)
+            val topScope = ScriptableObject.getTopLevelScope(scope)
             if (args.isNotEmpty()) {
-                JSAdapter(Context.toObject(args[0], tmp))
+                JSAdapter(Context.toObject(args[0], topScope))
             } else {
                 throw Context.reportRuntimeError("JSAdapter requires adaptee")
             }
         } else {
-            tmp = adaptee
-            if (tmp is Function) {
-                tmp.construct(cx, scope, args)
+            val target = adaptee
+            if (target is Function) {
+                target.construct(cx, scope, args)
             } else {
                 throw Context.reportRuntimeError("TypeError: not a constructor")
             }
         }
     }
 
-    private fun mapToId(tmp: Any?): Any {
-        return if (tmp is Double) tmp.toInt() else Context.toString(tmp)
+    private fun mapToId(value: Any?): Any {
+        return if (value is Double) value.toInt() else Context.toString(value)
     }
 
     private fun getAdapteeFunction(name: String): Function? {
-        val o = ScriptableObject.getProperty(adaptee, name)
-        return o as? Function
+        val prop = ScriptableObject.getProperty(adaptee, name)
+        return prop as? Function
     }
 
     private fun call(func: Function, args: Array<Any?>): Any {
@@ -280,7 +269,7 @@ class JSAdapter private constructor(var adaptee: Scriptable) : Scriptable, Funct
         return try {
             func.call(cx, scope, thisObj, args)
         } catch (re: RhinoException) {
-            throw Context.reportRuntimeError(re.message)
+            throw Context.reportRuntimeError(re.message ?: re.toString())
         }
     }
 
@@ -296,9 +285,9 @@ class JSAdapter private constructor(var adaptee: Scriptable) : Scriptable, Funct
         fun init(cx: Context, scope: Scriptable, sealed: Boolean) {
             val obj = JSAdapter(cx.newObject(scope))
             obj.parentScope = scope
-            obj.setPrototype(getFunctionPrototype(scope))
+            obj.prototype = getFunctionPrototype(scope)
             obj.isPrototype = true
-            ScriptableObject.defineProperty(scope, "JSAdapter", obj, 2)
+            ScriptableObject.defineProperty(scope, "JSAdapter", obj, ScriptableObject.DONTENUM)
         }
 
         private fun getFunctionPrototype(scope: Scriptable): Scriptable {

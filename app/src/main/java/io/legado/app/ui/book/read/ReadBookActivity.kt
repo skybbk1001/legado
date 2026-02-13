@@ -1695,7 +1695,10 @@ class ReadBookActivity : BaseReadBookActivity(),
             .setCoroutineContext(context)
             .setContent(body, baseUrl)
         val hasJs = AppPattern.JS_PATTERN.matcher(listRule).find()
-        val list = runCatching { analyzeRule.getElements(listRule) }.getOrElse { emptyList() }
+        val list = runCatching { analyzeRule.getElements(listRule) }.getOrElse {
+            AppLog.put("段评统计列表规则执行出错\n${it.localizedMessage}", it)
+            emptyList()
+        }
         val finalList = if (list.isEmpty() && !hasJs) {
             evalSummaryListByJs(analyzeRule, listRule) ?: list
         } else {
