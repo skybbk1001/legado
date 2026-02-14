@@ -44,6 +44,7 @@ class RssSourceEditAdapter(
                     .inflate(LayoutInflater.from(parent.context), parent, false)
                 CheckBoxViewHolder(binding)
             }
+
             else -> {
                 val binding = ItemSourceEditWebBinding
                     .inflate(LayoutInflater.from(parent.context), parent, false)
@@ -123,18 +124,16 @@ class RssSourceEditAdapter(
         }
     }
 
-    inner class CheckBoxViewHolder(val binding: ItemSourceEditCheckBoxBinding) :
+    class CheckBoxViewHolder(val binding: ItemSourceEditCheckBoxBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(editEntity: EditEntity) = binding.run {
-            checkBox.setOnCheckedChangeListener(null)
             checkBox.text = editEntity.hint
             checkBox.isChecked = editEntity.value.isTrue()
-            checkBox.setOnCheckedChangeListener { _, isChecked ->
+            checkBox.setOnUserCheckedChangeListener { isChecked ->
                 editEntity.value = isChecked.toString()
             }
         }
-
 
     }
 
