@@ -52,12 +52,15 @@ import io.legado.app.utils.isJsonArray
 import io.legado.app.utils.isJsonObject
 import io.legado.app.utils.isXml
 import kotlinx.coroutines.runBlocking
+import okhttp3.Dns
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.io.ByteArrayInputStream
 import java.io.InputStream
+import java.net.InetAddress
 import java.net.URLEncoder
 import java.nio.charset.Charset
 import java.util.concurrent.TimeUnit
@@ -106,6 +109,10 @@ class AnalyzeUrl(
     private var charset: String? = null
     private var method = RequestMethod.GET
     private var proxy: String? = null
+    private var readTimeoutMs: Long? = readTimeout
+    private var callTimeoutMs: Long? = callTimeout
+    private var followRedirects: Boolean? = null
+    private var resolveIp: String? = null
     private var retry: Int = 0
     private var useWebView: Boolean = false
     private var webJs: String? = null
@@ -244,6 +251,15 @@ class AnalyzeUrl(
                 retry = option.getRetry()
                 useWebView = option.useWebView()
                 webJs = option.getWebJs()
+                option.getTimeout()?.let { timeout ->
+                    readTimeoutMs = timeout
+                }
+                option.getFollowRedirects()?.let {
+                    followRedirects = it
+                }
+                option.getResolveIp()?.let {
+                    resolveIp = it
+                }
                 option.getJs()?.let { jsStr ->
                     evalJS(jsStr, url)?.toString()?.let {
                         url = it
@@ -519,17 +535,40 @@ class AnalyzeUrl(
 
     private fun getClient(): OkHttpClient {
         val client = getProxyClient(proxy)
-        if (readTimeout == null && callTimeout == null) {
+        if (
+            readTimeoutMs == null &&
+            callTimeoutMs == null &&
+            followRedirects == null &&
+            resolveIp.isNullOrBlank()
+        ) {
             return client
         }
+        val targetHost = urlNoQuery.toHttpUrlOrNull()?.host
+        val resolveAddresses = resolveIp?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { parseResolveIpLiteral(it) }
         return client.newBuilder().run {
-            if (readTimeout != null) {
-                readTimeout(readTimeout, TimeUnit.MILLISECONDS)
-                callTimeout(max(60 * 1000L, readTimeout * 2), TimeUnit.MILLISECONDS)
+            followRedirects?.let {
+                followRedirects(it)
+                followSslRedirects(it)
             }
-            if (callTimeout != null) {
-                callTimeout(callTimeout, TimeUnit.MILLISECONDS)
+            if (!targetHost.isNullOrBlank() && !resolveAddresses.isNullOrEmpty()) {
+                dns(Dns { hostname ->
+                    if (hostname.equals(targetHost, true)) {
+                        // resolveIp only applies to the current request host.
+                        resolveAddresses
+                    } else {
+                        Dns.SYSTEM.lookup(hostname)
+                    }
+                })
             }
+            readTimeoutMs?.let { timeoutMs ->
+                readTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                if (callTimeoutMs == null) {
+                    callTimeout(max(60 * 1000L, timeoutMs * 2), TimeUnit.MILLISECONDS)
+                }
+            }
+            callTimeoutMs?.let { callTimeout(it, TimeUnit.MILLISECONDS) }
             build()
         }
     }
@@ -589,7 +628,7 @@ class AnalyzeUrl(
      * 上传文件
      */
     suspend fun upload(fileName: String, file: Any, contentType: String): StrResponse {
-        return getProxyClient(proxy).newCallStrResponse(retry) {
+        return getClient().newCallStrResponse(retry) {
             url(urlNoQuery)
             val bodyMap = GSON.fromJsonObject<HashMap<String, Any>>(body).getOrNull()!!
             bodyMap.forEach { entry ->
@@ -665,6 +704,20 @@ class AnalyzeUrl(
         return method == RequestMethod.POST
     }
 
+    private fun parseResolveIpLiteral(value: String): List<InetAddress>? {
+        if (!isIpLiteral(value)) return null
+        return kotlin.runCatching { InetAddress.getAllByName(value).toList() }.getOrNull()
+    }
+
+    private fun isIpLiteral(value: String): Boolean {
+        if (value.isBlank()) return false
+        val ipv4Like = value.contains('.') && value.all { it.isDigit() || it == '.' }
+        val ipv6Like = value.contains(':') && value.all {
+            it.isDigit() || it.lowercaseChar() in 'a'..'f' || it == ':'
+        }
+        return ipv4Like || ipv6Like
+    }
+
     override fun getSource(): BaseSource? {
         return source
     }
@@ -708,6 +761,18 @@ class AnalyzeUrl(
          * webView中执行的js
          **/
         private var webJs: String? = null,
+        /**
+         * 请求超时（毫秒）
+         */
+        private var timeout: Long? = null,
+        /**
+         * 是否跟随重定向
+         */
+        private var followRedirects: Any? = null,
+        /**
+         * 指定当前请求域名解析到的IP，仅对当前URL的host生效
+         */
+        private var resolveIp: String? = null,
         /**
          * 解析完url参数时执行的js
          * 执行结果会赋值给url
@@ -763,14 +828,35 @@ class AnalyzeUrl(
         }
 
         fun useWebView(): Boolean {
-            return when (webView) {
-                null, "", false, "false" -> false
-                else -> true
-            }
+            return toBooleanOrNull(webView) ?: false
         }
 
         fun useWebView(boolean: Boolean) {
             webView = if (boolean) true else null
+        }
+
+        fun setTimeout(value: String?) {
+            timeout = if (value.isNullOrBlank()) null else value.toLongOrNull()
+        }
+
+        fun getTimeout(): Long? {
+            return timeout?.takeIf { it > 0 }
+        }
+
+        fun setFollowRedirects(value: String?) {
+            followRedirects = value
+        }
+
+        fun getFollowRedirects(): Boolean? {
+            return toBooleanOrNull(followRedirects)
+        }
+
+        fun setResolveIp(value: String?) {
+            resolveIp = if (value.isNullOrBlank()) null else value.trim()
+        }
+
+        fun getResolveIp(): String? {
+            return resolveIp
         }
 
         fun setHeaders(value: String?) {
@@ -834,6 +920,20 @@ class AnalyzeUrl(
 
         fun getWebViewDelayTime(): Long? {
             return webViewDelayTime
+        }
+
+        private fun toBooleanOrNull(value: Any?): Boolean? {
+            return when (value) {
+                is Boolean -> value
+                is Number -> value.toInt() != 0
+                is String -> when (value.trim().lowercase()) {
+                    "true", "1" -> true
+                    "false", "0", "" -> false
+                    else -> null
+                }
+
+                else -> null
+            }
         }
     }
 

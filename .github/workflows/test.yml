@@ -196,8 +196,6 @@ jobs:
           ## 更新日志
           - ${{ steps.commit_msg.outputs.msg }}
 
-          ---
-          提示：此版本为测试版，签名与正式版不同，升级前请务必备份好数据。
           EOF
       - uses: actions/download-artifact@v4
         with:

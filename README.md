@@ -37,6 +37,13 @@ Legado is a free and open source novel reader for Android.
 9.软件开源，持续优化，无广告。
 </details>
 
+#### 阅读T增强特性
+* 规则能力增强：URL参数支持 `timeout`、`followRedirects`、`resolveIp`，java.get/post/head新增json字符串请求头的重载方法
+* JS引擎升级：更换Rhino为htmlunit-core-js，修复const作用域问题。
+* 加解密优化：内置 `CryptoJS`，方便使用网页JS加解密函数。
+* 代码编辑体验增强：WebView代码编辑器支持自动补全、语法检查、格式化等。
+* 定时任务支持：新增定时任务编辑与管理，支持 cron 表达式驱动脚本执行。
+
 <a href="#readme">
     <img src="https://img.shields.io/badge/-返回顶部-orange.svg" alt="#" align="right">
 </a>

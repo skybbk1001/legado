@@ -128,15 +128,21 @@ socks5代理
 {
   "proxy":"socks5://127.0.0.1:1080"
 }
-不支持需要验证的socks代理
+socks5代理（带账号密码）
+{
+  "proxy":"socks5://用户名:密码@127.0.0.1:1080"
+}
 http代理
 {
   "proxy":"http://127.0.0.1:1080"
 }
 支持http代理服务器验证
 {
-  "proxy":"http://127.0.0.1:1080@用户名@密码"
+  "proxy":"http://用户名:密码@127.0.0.1:1080"
 }
+认证只支持标准格式 `scheme://username:password@host:port`，格式错误会直接报错中断
+`socks4` 不支持用户名密码认证，如需认证请使用 `socks5`
+
 注意:这些请求头是无意义的,会被忽略掉
 ```
 
@@ -145,6 +151,21 @@ http代理
 https://www.baidu.com,{"js":"java.headerMap.put('xxx', 'yyy')"}
 https://www.baidu.com,{"js":"java.url=java.url+'yyyy'"}
 ```
+
+* URL参数字段（JSON）
+```json
+{
+  "method": "GET/POST",
+  "headers": {"User-Agent":"xxx"},
+  "body": "a=1&b=2 或 JSON 字符串",
+  "retry": 1,
+  "webView": true,
+  "timeout": 5000,
+  "followRedirects": false,
+  "resolveIp": "1.2.3.4"
+}
+```
+> `timeout` 单位毫秒；`followRedirects=false` 可用于手动处理重定向；`resolveIp` 用于指定当前域名解析到的目标 IP
 
 * 增加js方法，用于重定向拦截
   * `java.get(urlStr: String, headers: Map<String, String>)`

@@ -14,15 +14,345 @@ import okhttp3.CookieJar
 import okhttp3.Credentials
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
+import java.io.EOFException
+import java.io.IOException
+import java.io.InputStream
+import java.net.Inet4Address
+import java.net.Inet6Address
 import java.net.InetSocketAddress
 import java.net.Proxy
+import java.net.URI
+import java.net.Socket
+import java.net.SocketAddress
+import java.net.SocketException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import javax.net.SocketFactory
 
 private val proxyClientCache: ConcurrentHashMap<String, OkHttpClient> by lazy {
     ConcurrentHashMap()
+}
+
+private const val PROXY_CONFIG_ERROR = "PROXY_CONFIG_ERROR"
+
+private enum class ProxyScheme {
+    HTTP,
+    SOCKS4,
+    SOCKS5
+}
+
+private data class Socks5Auth(
+    val username: String,
+    val password: String
+)
+
+private class Socks5TunnelSocketFactory(
+    private val proxyHost: String,
+    private val proxyPort: Int,
+    private val auth: Socks5Auth?
+) : SocketFactory() {
+
+    override fun createSocket(): Socket {
+        return Socks5TunnelSocket(proxyHost, proxyPort, auth)
+    }
+
+    override fun createSocket(host: String?, port: Int): Socket {
+        return createSocket().apply { connect(InetSocketAddress(host, port)) }
+    }
+
+    override fun createSocket(host: String?, port: Int, localHost: java.net.InetAddress?, localPort: Int): Socket {
+        return createSocket().apply {
+            if (localHost != null) {
+                bind(InetSocketAddress(localHost, localPort))
+            }
+            connect(InetSocketAddress(host, port))
+        }
+    }
+
+    override fun createSocket(host: java.net.InetAddress?, port: Int): Socket {
+        return createSocket().apply { connect(InetSocketAddress(host, port)) }
+    }
+
+    override fun createSocket(
+        address: java.net.InetAddress?,
+        port: Int,
+        localAddress: java.net.InetAddress?,
+        localPort: Int
+    ): Socket {
+        return createSocket().apply {
+            if (localAddress != null) {
+                bind(InetSocketAddress(localAddress, localPort))
+            }
+            connect(InetSocketAddress(address, port))
+        }
+    }
+}
+
+private class Socks5TunnelSocket(
+    proxyHost: String,
+    proxyPort: Int,
+    private val auth: Socks5Auth?
+) : Socket() {
+
+    private val proxyAddress = InetSocketAddress(proxyHost, proxyPort)
+    private val delegate = Socket()
+    @Volatile
+    private var connected = false
+    @Volatile
+    private var closed = false
+
+    override fun connect(endpoint: SocketAddress?) {
+        connect(endpoint, 0)
+    }
+
+    override fun connect(endpoint: SocketAddress?, timeout: Int) {
+        if (closed) throw SocketException("Socket is closed")
+        if (connected) throw SocketException("Socket is already connected")
+        val target = endpoint as? InetSocketAddress
+            ?: throw SocketException("Unsupported endpoint: $endpoint")
+        delegate.connect(proxyAddress, timeout)
+        val originalTimeout = delegate.soTimeout
+        val handshakeTimeout = if (timeout > 0) timeout else 15000
+        if (handshakeTimeout > 0) {
+            delegate.soTimeout = handshakeTimeout
+        }
+        try {
+            Socks5Protocol.connect(delegate, target, auth)
+            connected = true
+        } catch (e: IOException) {
+            runCatching { delegate.close() }
+            throw e
+        } finally {
+            runCatching { delegate.soTimeout = originalTimeout }
+        }
+    }
+
+    override fun bind(bindpoint: SocketAddress?) {
+        delegate.bind(bindpoint)
+    }
+
+    override fun getInputStream() = delegate.getInputStream()
+
+    override fun getOutputStream() = delegate.getOutputStream()
+
+    override fun setSoTimeout(timeout: Int) {
+        delegate.soTimeout = timeout
+    }
+
+    override fun getSoTimeout(): Int = delegate.soTimeout
+
+    override fun setTcpNoDelay(on: Boolean) {
+        delegate.tcpNoDelay = on
+    }
+
+    override fun getTcpNoDelay(): Boolean = delegate.tcpNoDelay
+
+    override fun setKeepAlive(on: Boolean) {
+        delegate.keepAlive = on
+    }
+
+    override fun getKeepAlive(): Boolean = delegate.keepAlive
+
+    override fun setReuseAddress(on: Boolean) {
+        delegate.reuseAddress = on
+    }
+
+    override fun getReuseAddress(): Boolean = delegate.reuseAddress
+
+    override fun shutdownInput() {
+        delegate.shutdownInput()
+    }
+
+    override fun shutdownOutput() {
+        delegate.shutdownOutput()
+    }
+
+    override fun close() {
+        closed = true
+        delegate.close()
+    }
+
+    override fun isConnected(): Boolean = connected && delegate.isConnected
+
+    override fun isClosed(): Boolean = closed || delegate.isClosed
+
+    override fun isBound(): Boolean = delegate.isBound
+
+    override fun isInputShutdown(): Boolean = delegate.isInputShutdown
+
+    override fun isOutputShutdown(): Boolean = delegate.isOutputShutdown
+
+    override fun getInetAddress() = delegate.inetAddress
+
+    override fun getLocalAddress() = delegate.localAddress
+
+    override fun getPort(): Int = delegate.port
+
+    override fun getLocalPort(): Int = delegate.localPort
+
+    override fun getRemoteSocketAddress(): SocketAddress? = delegate.remoteSocketAddress
+
+    override fun getLocalSocketAddress(): SocketAddress? = delegate.localSocketAddress
+}
+
+private object Socks5Protocol {
+    private const val VERSION = 0x05
+    private const val METHOD_NO_AUTH = 0x00
+    private const val METHOD_USER_PASS = 0x02
+
+    private const val CMD_CONNECT = 0x01
+
+    private const val ATYP_IPV4 = 0x01
+    private const val ATYP_DOMAIN = 0x03
+    private const val ATYP_IPV6 = 0x04
+
+    fun connect(socket: Socket, target: InetSocketAddress, auth: Socks5Auth?) {
+        val input = socket.getInputStream()
+        val output = socket.getOutputStream()
+
+        negotiateMethod(input, output, auth)
+        sendConnect(input, output, target)
+    }
+
+    private fun negotiateMethod(input: InputStream, output: java.io.OutputStream, auth: Socks5Auth?) {
+        val methods = if (auth == null) {
+            byteArrayOf(METHOD_NO_AUTH.toByte())
+        } else {
+            byteArrayOf(METHOD_USER_PASS.toByte())
+        }
+        output.write(byteArrayOf(VERSION.toByte(), methods.size.toByte()))
+        output.write(methods)
+        output.flush()
+
+        val serverChoice = readFully(input, 2)
+        if (serverChoice[0].toInt() != VERSION) {
+            throw IOException("SOCKS5 握手失败: 非法版本")
+        }
+        when (serverChoice[1].toInt() and 0xFF) {
+            METHOD_NO_AUTH -> {
+                if (auth != null) {
+                    throw IOException("SOCKS5 代理未按要求使用用户名密码认证")
+                }
+                return
+            }
+            METHOD_USER_PASS -> {
+                if (auth == null) {
+                    throw IOException("SOCKS5 代理要求认证")
+                }
+                authUserPass(input, output, auth)
+            }
+
+            0xFF -> throw IOException("SOCKS5 代理不接受认证方式")
+            else -> throw IOException("SOCKS5 代理返回不支持的认证方式")
+        }
+    }
+
+    private fun authUserPass(input: InputStream, output: java.io.OutputStream, auth: Socks5Auth) {
+        val usernameBytes = auth.username.toByteArray(Charsets.UTF_8)
+        val passwordBytes = auth.password.toByteArray(Charsets.UTF_8)
+        if (usernameBytes.isEmpty() || usernameBytes.size > 255 || passwordBytes.isEmpty() || passwordBytes.size > 255) {
+            throw IOException("$PROXY_CONFIG_ERROR: SOCKS5 认证用户名/密码长度必须在1..255字节")
+        }
+
+        output.write(byteArrayOf(0x01, usernameBytes.size.toByte()))
+        output.write(usernameBytes)
+        output.write(byteArrayOf(passwordBytes.size.toByte()))
+        output.write(passwordBytes)
+        output.flush()
+
+        val authResp = readFully(input, 2)
+        if (authResp[1].toInt() != 0x00) {
+            throw IOException("SOCKS : authentication failed")
+        }
+    }
+
+    private fun sendConnect(input: InputStream, output: java.io.OutputStream, target: InetSocketAddress) {
+        val host = target.hostString ?: target.address?.hostAddress
+            ?: throw IOException("SOCKS5 目标主机为空")
+        val port = target.port
+        if (port !in 1..65535) {
+            throw IOException("SOCKS5 目标端口非法: $port")
+        }
+
+        val req = java.io.ByteArrayOutputStream()
+        req.write(VERSION)
+        req.write(CMD_CONNECT)
+        req.write(0x00)
+        val targetAddress = target.address
+        when (targetAddress) {
+            is Inet4Address -> {
+                req.write(ATYP_IPV4)
+                req.write(targetAddress.address)
+            }
+
+            is Inet6Address -> {
+                req.write(ATYP_IPV6)
+                req.write(targetAddress.address)
+            }
+
+            else -> {
+                val hostBytes = host.toByteArray(Charsets.UTF_8)
+                if (hostBytes.isEmpty() || hostBytes.size > 255) {
+                    throw IOException("SOCKS5 域名长度非法")
+                }
+                req.write(ATYP_DOMAIN)
+                req.write(hostBytes.size)
+                req.write(hostBytes)
+            }
+        }
+        req.write((port shr 8) and 0xFF)
+        req.write(port and 0xFF)
+        output.write(req.toByteArray())
+        output.flush()
+
+        val respHead = readFully(input, 4)
+        if (respHead[0].toInt() != VERSION) {
+            throw IOException("SOCKS5 CONNECT 失败: 非法版本")
+        }
+        val rep = respHead[1].toInt() and 0xFF
+        if (rep != 0x00) {
+            throw IOException("SOCKS5 CONNECT 失败: ${replyMessage(rep)}")
+        }
+        val atyp = respHead[3].toInt() and 0xFF
+        when (atyp) {
+            ATYP_IPV4 -> readFully(input, 4)
+            ATYP_IPV6 -> readFully(input, 16)
+            ATYP_DOMAIN -> {
+                val len = readFully(input, 1)[0].toInt() and 0xFF
+                readFully(input, len)
+            }
+
+            else -> throw IOException("SOCKS5 CONNECT 失败: 非法地址类型")
+        }
+        readFully(input, 2)
+    }
+
+    private fun readFully(input: InputStream, length: Int): ByteArray {
+        val out = ByteArray(length)
+        var offset = 0
+        while (offset < length) {
+            val count = input.read(out, offset, length - offset)
+            if (count < 0) throw EOFException("SOCKS5 握手响应不完整")
+            offset += count
+        }
+        return out
+    }
+
+    private fun replyMessage(rep: Int): String {
+        return when (rep) {
+            0x01 -> "general SOCKS server failure"
+            0x02 -> "connection not allowed by ruleset"
+            0x03 -> "network unreachable"
+            0x04 -> "host unreachable"
+            0x05 -> "connection refused"
+            0x06 -> "TTL expired"
+            0x07 -> "command not supported"
+            0x08 -> "address type not supported"
+            else -> "unknown error($rep)"
+        }
+    }
 }
 
 val cookieJar by lazy {
@@ -143,42 +473,87 @@ val okHttpClientManga by lazy {
  * 缓存代理okHttp
  */
 fun getProxyClient(proxy: String? = null): OkHttpClient {
-    if (proxy.isNullOrBlank()) {
+    val proxyValue = proxy?.trim()
+    if (proxyValue.isNullOrBlank()) {
         return okHttpClient
     }
-    proxyClientCache[proxy]?.let {
+    proxyClientCache[proxyValue]?.let {
         return it
     }
-    val r = Regex("(http|socks4|socks5)://(.*):(\\d{2,5})(@.*@.*)?")
-    val ms = r.findAll(proxy)
-    val group = ms.first()
-    var username = ""       //代理服务器验证用户名
-    var password = ""       //代理服务器验证密码
-    val type = if (group.groupValues[1] == "http") "http" else "socks"
-    val host = group.groupValues[2]
-    val port = group.groupValues[3].toInt()
-    if (group.groupValues[4] != "") {
-        username = group.groupValues[4].split("@")[1]
-        password = group.groupValues[4].split("@")[2]
-    }
-    if (host != "") {
-        val builder = okHttpClient.newBuilder()
-        if (type == "http") {
-            builder.proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(host, port)))
-        } else {
-            builder.proxy(Proxy(Proxy.Type.SOCKS, InetSocketAddress(host, port)))
-        }
-        if (username != "" && password != "") {
-            builder.proxyAuthenticator { _, response -> //设置代理服务器账号密码
-                val credential: String = Credentials.basic(username, password)
-                response.request.newBuilder()
-                    .header("Proxy-Authorization", credential)
-                    .build()
+    val config = parseProxyConfig(proxyValue)
+    val builder = okHttpClient.newBuilder()
+    when (config.scheme) {
+        ProxyScheme.HTTP -> {
+            builder.proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(config.host, config.port)))
+            if (config.username.isNotEmpty()) {
+                builder.proxyAuthenticator { _, response ->
+                    val credential = Credentials.basic(config.username, config.password)
+                    response.request.newBuilder().header("Proxy-Authorization", credential).build()
+                }
             }
         }
-        val proxyClient = builder.build()
-        proxyClientCache[proxy] = proxyClient
-        return proxyClient
+
+        ProxyScheme.SOCKS4 -> {
+            builder.proxy(Proxy(Proxy.Type.SOCKS, InetSocketAddress(config.host, config.port)))
+        }
+
+        ProxyScheme.SOCKS5 -> {
+            val auth = if (config.username.isNotEmpty()) {
+                Socks5Auth(config.username, config.password)
+            } else {
+                null
+            }
+            builder.proxy(Proxy.NO_PROXY)
+            builder.socketFactory(Socks5TunnelSocketFactory(config.host, config.port, auth))
+        }
     }
-    return okHttpClient
+    val proxyClient = builder.build()
+    proxyClientCache[proxyValue] = proxyClient
+    return proxyClient
+}
+
+private data class ProxyConfig(
+    val scheme: ProxyScheme,
+    val host: String,
+    val port: Int,
+    val username: String,
+    val password: String
+)
+
+private fun parseProxyConfig(proxy: String): ProxyConfig {
+    val uri = kotlin.runCatching { URI(proxy) }.getOrElse {
+        throw IllegalArgumentException(
+            "$PROXY_CONFIG_ERROR: proxy 格式错误: $proxy, 正确示例: socks5://user:pass@127.0.0.1:1080",
+            it
+        )
+    }
+    val scheme = uri.scheme?.lowercase()
+        ?: throw IllegalArgumentException("$PROXY_CONFIG_ERROR: proxy 缺少协议: $proxy")
+    val proxyScheme = when (scheme) {
+        "http" -> ProxyScheme.HTTP
+        "socks4" -> ProxyScheme.SOCKS4
+        "socks5" -> ProxyScheme.SOCKS5
+        else -> throw IllegalArgumentException("$PROXY_CONFIG_ERROR: 不支持的 proxy 协议: $scheme")
+    }
+    val host = uri.host?.trim().orEmpty()
+    val port = uri.port
+    if (host.isEmpty() || port !in 1..65535) {
+        throw IllegalArgumentException("$PROXY_CONFIG_ERROR: proxy 主机或端口错误: $proxy")
+    }
+    val userInfo = uri.userInfo.orEmpty()
+    if (userInfo.isEmpty()) {
+        return ProxyConfig(proxyScheme, host, port, "", "")
+    }
+    val auth = userInfo.split(":", limit = 2)
+    if (auth.size != 2 || auth[0].isEmpty() || auth[1].isEmpty()) {
+        throw IllegalArgumentException(
+            "$PROXY_CONFIG_ERROR: proxy 认证格式错误, 需使用 username:password, 不支持仅用户名: $proxy"
+        )
+    }
+    if (proxyScheme == ProxyScheme.SOCKS4) {
+        throw IllegalArgumentException(
+            "$PROXY_CONFIG_ERROR: socks4 不支持用户名密码认证, 请使用 socks5://username:password@host:port"
+        )
+    }
+    return ProxyConfig(proxyScheme, host, port, auth[0], auth[1])
 }
