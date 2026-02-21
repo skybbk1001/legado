@@ -82,10 +82,10 @@ class OnLineImportActivity :
                 "/theme" -> showDialogFragment(
                     ImportThemeDialog(url, true)
                 )
-                "/autoTask",
-                "/auto" -> showDialogFragment(
+                "/autoTask" -> showDialogFragment(
                     ImportAutoTaskDialog(url, true)
                 )
+                "/auto" -> viewModel.determineType(url, this::finallyDialog)
                 "/readConfig" -> viewModel.getBytes(url) { bytes ->
                     viewModel.importReadConfig(bytes, this::finallyDialog)
                 }
