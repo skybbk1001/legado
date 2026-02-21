@@ -213,7 +213,7 @@ Cron 使用 5 个字段：**分 时 日 月 周**
         \u3000\u3000这是一款使用 Kotlin 全新开发的开源的阅读软件，欢迎您的加入。
     </string>
     <string name="app_share_description">
-        阅读 3.0 下载地址：\nhttps://github.com/gedoor/legado/releases
+        阅读 3.0 下载地址：\nhttps://github.com/skybbk1001/legado/releases
     </string>
     <string name="version_name">版本 %s</string>
     <string name="pt_background_verification">后台校验书源</string>

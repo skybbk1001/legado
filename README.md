@@ -43,6 +43,9 @@ Legado is a free and open source novel reader for Android.
 * 加解密优化：内置 `CryptoJS`，方便使用网页JS加解密函数。
 * 代码编辑体验增强：WebView代码编辑器支持自动补全、语法检查、格式化等。
 * 定时任务支持：新增定时任务编辑与管理，支持 cron 表达式驱动脚本执行。
+* 听书体验增强：新增片头/片尾自动跳过，支持本书与全局配置。
+* 有声书缓存增强：支持范围缓存、自定义缓存目录、清除本章缓存并触发重新解析。
+* 新增中文 OCR 能力，提升图片文字提取场景可用性。
 
 <a href="#readme">
     <img src="https://img.shields.io/badge/-返回顶部-orange.svg" alt="#" align="right">
@@ -78,6 +81,7 @@ https://www.yuque.com/legado/wiki/community
 https://gedoor.github.io/Disclaimer
 
 ##### 阅读3.0
+* [下载发布](https://github.com/skybbk1001/legado/releases)
 * [书源规则](https://mgz0227.github.io/The-tutorial-of-Legado/)
 * [更新日志](/app/src/main/assets/updateLog.md)
 * [帮助文档](/app/src/main/assets/web/help/md/appHelp.md)
