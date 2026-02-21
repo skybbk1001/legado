@@ -4,7 +4,9 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.lifecycleScope
 import io.legado.app.R
@@ -25,6 +27,9 @@ import io.legado.app.utils.startForegroundServiceCompat
 import io.legado.app.utils.startService
 import io.legado.app.utils.servicePendingIntent
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -37,8 +42,10 @@ import java.util.Locale
 class AutoTaskService : BaseService() {
 
     companion object {
-        const val EXTRA_TASK_ID = "autoTaskId"
         private const val ALARM_REQUEST_CODE = 100108
+        private const val DATA_SYNC_IDLE_CHECK_MS = 60_000L
+        private const val DATA_SYNC_MIN_DELAY_MS = 1_000L
+        private const val FIRST_RUN_GRACE_MS = 5 * 60_000L
 
         var isRun = false
             private set
@@ -57,20 +64,12 @@ class AutoTaskService : BaseService() {
             dispatchForeground(context, IntentAction.refreshSchedule)
         }
 
-        fun runOnce(context: Context, taskId: String) {
-            dispatchForeground(context, IntentAction.runOnce) {
-                putExtra(EXTRA_TASK_ID, taskId)
-            }
-        }
-
-        private inline fun dispatchForeground(
+        private fun dispatchForeground(
             context: Context,
-            action: String,
-            crossinline intentConfig: Intent.() -> Unit = {}
+            action: String
         ) {
             val intent = Intent(context, AutoTaskService::class.java).apply {
                 this.action = action
-                intentConfig()
             }
             context.startForegroundServiceCompat(intent)
         }
@@ -80,6 +79,7 @@ class AutoTaskService : BaseService() {
     private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
     private val maxLogLength = 4000
     private val taskLock = Mutex()
+    private var dataSyncLoopJob: Job? = null
 
     private val notificationBuilder by lazy {
         NotificationCompat.Builder(this, AppConst.channelIdWeb)
@@ -99,6 +99,8 @@ class AutoTaskService : BaseService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == IntentAction.stop) {
             putPrefBoolean(PreferKey.autoTaskService, false)
+            dataSyncLoopJob?.cancel()
+            dataSyncLoopJob = null
             cancelNextAlarm()
             stopSelf()
             return START_NOT_STICKY
@@ -108,16 +110,24 @@ class AutoTaskService : BaseService() {
         if (result == START_NOT_STICKY) {
             return result
         }
-        when (intent?.action) {
-            IntentAction.start, IntentAction.refreshSchedule, null -> runDueAndReschedule(startId)
-            IntentAction.runOnce -> runOnce(intent, startId)
-            else -> runDueAndReschedule(startId)
+        if (useAlarmFgsMode()) {
+            runDueAndReschedule(startId)
+        } else {
+            if (!getPrefBoolean(PreferKey.autoTaskService)) {
+                stopSelfResult(startId)
+                return START_NOT_STICKY
+            }
+            cancelNextAlarm()
+            runDueNoReschedule()
+            ensureDataSyncLoopRunning()
         }
         return result
     }
 
     override fun onDestroy() {
         isRun = false
+        dataSyncLoopJob?.cancel()
+        dataSyncLoopJob = null
         super.onDestroy()
         notificationManager.cancel(NotificationId.AutoTaskService)
     }
@@ -142,19 +152,84 @@ class AutoTaskService : BaseService() {
         }
     }
 
+    private fun runDueNoReschedule() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            if (!getPrefBoolean(PreferKey.autoTaskService)) {
+                stopSelf()
+                return@launch
+            }
+            taskLock.withLock {
+                isRun = true
+                try {
+                    processDueTasks()
+                } finally {
+                    isRun = false
+                }
+            }
+        }
+    }
+
+    private fun ensureDataSyncLoopRunning() {
+        if (dataSyncLoopJob?.isActive == true) return
+        if (!hasEnabledRule()) {
+            stopSelf()
+            return
+        }
+        dataSyncLoopJob = lifecycleScope.launch(Dispatchers.IO) {
+            AppLog.put("AutoTask dataSync loop started")
+            while (isActive && !useAlarmFgsMode()) {
+                if (!getPrefBoolean(PreferKey.autoTaskService)) {
+                    break
+                }
+                val rules = AutoTask.getRules()
+                if (!hasEnabledRule(rules)) {
+                    break
+                }
+                val delayMs = computeDataSyncDelayMs(rules)
+                delay(delayMs)
+                if (!getPrefBoolean(PreferKey.autoTaskService)) {
+                    break
+                }
+                taskLock.withLock {
+                    isRun = true
+                    try {
+                        processDueTasks()
+                    } finally {
+                        isRun = false
+                    }
+                }
+            }
+            AppLog.put("AutoTask dataSync loop stopped")
+            dataSyncLoopJob = null
+            if (!getPrefBoolean(PreferKey.autoTaskService) || !hasEnabledRule()) {
+                stopSelf()
+            }
+        }
+    }
+
+    private fun computeDataSyncDelayMs(rules: List<AutoTaskRule>): Long {
+        val nextRunAt = computeNextRunAt(rules) ?: return DATA_SYNC_IDLE_CHECK_MS
+        val delayMs = nextRunAt - System.currentTimeMillis()
+        return delayMs.coerceAtLeast(DATA_SYNC_MIN_DELAY_MS)
+    }
+
     private suspend fun processDueTasks() {
         val rules = AutoTask.getRules()
         if (rules.isEmpty()) {
             notificationContent = getString(R.string.auto_task_no_task)
             upNotification()
-            cancelNextAlarm()
+            if (useAlarmFgsMode()) {
+                cancelNextAlarm()
+            }
             return
         }
         val enabled = rules.filter { it.enable }
         if (enabled.isEmpty()) {
             notificationContent = getString(R.string.auto_task_no_enabled)
             upNotification()
-            cancelNextAlarm()
+            if (useAlarmFgsMode()) {
+                cancelNextAlarm()
+            }
             return
         }
 
@@ -171,7 +246,7 @@ class AutoTaskService : BaseService() {
                 updateCronError(task, getString(R.string.auto_task_cron_invalid))
                 return@forEach
             }
-            val baseTime = if (task.lastRunAt > 0L) task.lastRunAt else now - 60_000L
+            val baseTime = resolveBaseTime(task.lastRunAt, now)
             val nextRun = schedule.nextTimeAfter(baseTime)
             if (nextRun == null) {
                 updateCronError(task, getString(R.string.auto_task_cron_invalid))
@@ -189,35 +264,8 @@ class AutoTaskService : BaseService() {
         }
     }
 
-    private fun runOnce(intent: Intent, startId: Int) {
-        val taskId = intent.getStringExtra(EXTRA_TASK_ID).orEmpty()
-        if (taskId.isBlank()) {
-            stopSelfResult(startId)
-            return
-        }
-        lifecycleScope.launch(Dispatchers.IO) {
-            taskLock.withLock {
-                isRun = true
-                try {
-                    val task = AutoTask.getRules().firstOrNull { it.id == taskId }
-                    if (task == null) {
-                        notificationContent = getString(R.string.auto_task_no_task)
-                        upNotification()
-                    } else {
-                        runTask(task)
-                    }
-                    if (getPrefBoolean(PreferKey.autoTaskService)) {
-                        scheduleNextRunFromRules()
-                    }
-                } finally {
-                    isRun = false
-                }
-            }
-            stopSelfResult(startId)
-        }
-    }
-
     private fun scheduleNextRunFromRules() {
+        if (!useAlarmFgsMode()) return
         val nextRunAt = computeNextRunAt(AutoTask.getRules())
         if (nextRunAt == null) {
             cancelNextAlarm()
@@ -235,7 +283,7 @@ class AutoTaskService : BaseService() {
             val cron = task.cron?.trim().orEmpty()
             if (cron.isBlank()) return@forEach
             val schedule = CronSchedule.parse(cron) ?: return@forEach
-            val baseTime = if (task.lastRunAt > 0L) task.lastRunAt else now - 60_000L
+            val baseTime = resolveBaseTime(task.lastRunAt, now)
             val next = schedule.nextTimeAfter(baseTime) ?: return@forEach
             val current = nextRunAt
             nextRunAt = if (current == null) next else minOf(current, next)
@@ -243,31 +291,25 @@ class AutoTaskService : BaseService() {
         return nextRunAt
     }
 
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
     private fun scheduleNextAlarm(triggerAt: Long) {
+        if (!useAlarmFgsMode()) return
         val alarmManager = getSystemService(AlarmManager::class.java) ?: return
         val triggerAtMs = triggerAt.coerceAtLeast(System.currentTimeMillis() + 1000L)
         val pendingIntent = buildAlarmPendingIntent()
         kotlin.runCatching {
-            when {
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && alarmManager.canScheduleExactAlarms() -> {
-                    alarmManager.setExactAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        triggerAtMs,
-                        pendingIntent
-                    )
-                }
-
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
-                    alarmManager.setAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        triggerAtMs,
-                        pendingIntent
-                    )
-                }
-
-                else -> {
-                    alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAtMs, pendingIntent)
-                }
+            if (alarmManager.canScheduleExactAlarms()) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAtMs,
+                    pendingIntent
+                )
+            } else {
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAtMs,
+                    pendingIntent
+                )
             }
             AppLog.put("AutoTask next run at ${timeFormat.format(Date(triggerAtMs))}")
         }.onFailure { error ->
@@ -280,12 +322,24 @@ class AutoTaskService : BaseService() {
         alarmManager.cancel(buildAlarmPendingIntent())
     }
 
+    private fun useAlarmFgsMode(): Boolean {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM
+    }
+
+    private fun hasEnabledRule(rules: List<AutoTaskRule>): Boolean {
+        return rules.any { it.enable }
+    }
+
+    private fun hasEnabledRule(): Boolean {
+        return hasEnabledRule(AutoTask.getRules())
+    }
+
+    private fun resolveBaseTime(lastRunAt: Long, now: Long): Long {
+        return if (lastRunAt > 0L) lastRunAt else now - FIRST_RUN_GRACE_MS
+    }
+
     private fun buildAlarmPendingIntent(): PendingIntent {
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        } else {
-            PendingIntent.FLAG_UPDATE_CURRENT
-        }
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         return PendingIntent.getService(
             this,
             ALARM_REQUEST_CODE,
@@ -433,6 +487,16 @@ class AutoTaskService : BaseService() {
 
     override fun startForegroundNotification() {
         notificationBuilder.setContentText(notificationContent)
-        startForeground(NotificationId.AutoTaskService, notificationBuilder.build())
+        val notification = notificationBuilder.build()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val serviceType = if (useAlarmFgsMode()) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SHORT_SERVICE
+            } else {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            }
+            startForeground(NotificationId.AutoTaskService, notification, serviceType)
+        } else {
+            startForeground(NotificationId.AutoTaskService, notification)
+        }
     }
 }

@@ -46,10 +46,6 @@ object AutoTask {
         AutoTaskService.refresh(context)
     }
 
-    fun runOnce(context: Context, id: String) {
-        AutoTaskService.runOnce(context, id)
-    }
-
     fun buildSource(task: AutoTaskRule): BookSource {
         return BookSource(
             bookSourceUrl = "${SOURCE_KEY}:${task.id}",
@@ -65,12 +61,14 @@ object AutoTask {
         }
     }
 
+    @Synchronized
     fun getRules(): MutableList<AutoTaskRule> {
         val json = CacheManager.get(KEY_RULES) ?: return mutableListOf()
         return GSON.fromJsonArray<AutoTaskRule>(json).getOrNull()?.toMutableList()
             ?: mutableListOf()
     }
 
+    @Synchronized
     fun saveRules(list: List<AutoTaskRule>, refresh: Boolean = true) {
         CacheManager.put(KEY_RULES, GSON.toJson(list))
         if (refresh) {
@@ -78,6 +76,7 @@ object AutoTask {
         }
     }
 
+    @Synchronized
     fun upsert(rule: AutoTaskRule) {
         val list = getRules()
         val index = list.indexOfFirst { it.id == rule.id }
@@ -89,6 +88,7 @@ object AutoTask {
         saveRules(list)
     }
 
+    @Synchronized
     fun delete(vararg ids: String) {
         if (ids.isEmpty()) return
         val idSet = ids.toSet()
@@ -96,6 +96,7 @@ object AutoTask {
         saveRules(list)
     }
 
+    @Synchronized
     fun update(id: String, updater: (AutoTaskRule) -> AutoTaskRule): AutoTaskRule? {
         val list = getRules()
         val index = list.indexOfFirst { it.id == id }

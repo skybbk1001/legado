@@ -21,6 +21,7 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SHORT_SERVICE" />
 
     <application
         android:name=".App"
@@ -482,7 +483,7 @@
             android:foregroundServiceType="dataSync" />
         <service
             android:name=".service.AutoTaskService"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="dataSync|shortService" />
         <service
             android:name=".service.WebTileService"
             android:exported="true"
