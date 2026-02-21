@@ -492,6 +492,40 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
 
     val streamReadAloudAudio get() = appCtx.getPrefBoolean(PreferKey.streamReadAloudAudio, false)
 
+    var audioSkipEnabled: Boolean
+        get() = appCtx.getPrefBoolean(PreferKey.audioSkipEnabled, false)
+        set(value) {
+            appCtx.putPrefBoolean(PreferKey.audioSkipEnabled, value)
+        }
+
+    var audioSkipIntroMs: Int
+        get() = appCtx.getPrefInt(PreferKey.audioSkipIntroMs, 0)
+        set(value) {
+            appCtx.putPrefInt(PreferKey.audioSkipIntroMs, value.coerceAtLeast(0))
+        }
+
+    var audioSkipOutroMs: Int
+        get() = appCtx.getPrefInt(PreferKey.audioSkipOutroMs, 0)
+        set(value) {
+            appCtx.putPrefInt(PreferKey.audioSkipOutroMs, value.coerceAtLeast(0))
+        }
+
+    var audioSkipMinDurationMs: Int
+        get() = appCtx.getPrefInt(PreferKey.audioSkipMinDurationMs, 60_000)
+        set(value) {
+            appCtx.putPrefInt(PreferKey.audioSkipMinDurationMs, value.coerceAtLeast(0))
+        }
+
+    var audioCacheTreeUri: String?
+        get() = appCtx.getPrefString(PreferKey.audioCacheTreeUri)
+        set(value) {
+            if (value.isNullOrBlank()) {
+                appCtx.removePref(PreferKey.audioCacheTreeUri)
+            } else {
+                appCtx.putPrefString(PreferKey.audioCacheTreeUri, value)
+            }
+        }
+
     val doublePageHorizontal: String?
         get() = appCtx.getPrefString(PreferKey.doublePageHorizontal)
 

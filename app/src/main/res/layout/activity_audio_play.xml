@@ -83,6 +83,36 @@
             app:layout_constraintStart_toStartOf="parent"
             tools:ignore="ImageContrastCheck" />
 
+    <io.legado.app.ui.widget.image.ImageButton
+        android:id="@+id/iv_audio_skip"
+        android:layout_width="46dp"
+        android:layout_height="46dp"
+        android:layout_marginStart="10dp"
+        android:background="@drawable/selector_circle_btn_bg"
+        android:contentDescription="@string/audio_skip_enable"
+        android:padding="5dp"
+        android:src="@drawable/ic_auto_page"
+        app:layout_constraintBottom_toBottomOf="@id/iv_play_mode"
+        app:layout_constraintStart_toEndOf="@id/iv_play_mode"
+        app:layout_constraintTop_toTopOf="@id/iv_play_mode"
+        app:tint="@color/md_white_1000"
+        tools:ignore="ImageContrastCheck" />
+
+    <io.legado.app.ui.widget.image.ImageButton
+        android:id="@+id/iv_audio_cache"
+        android:layout_width="46dp"
+        android:layout_height="46dp"
+        android:layout_marginStart="8dp"
+        android:background="@drawable/selector_circle_btn_bg"
+        android:contentDescription="@string/audio_cache_range"
+        android:padding="5dp"
+        android:src="@drawable/ic_download_line"
+        app:layout_constraintBottom_toBottomOf="@id/iv_audio_skip"
+        app:layout_constraintStart_toEndOf="@id/iv_audio_skip"
+        app:layout_constraintTop_toTopOf="@id/iv_audio_skip"
+        app:tint="@color/md_white_1000"
+        tools:ignore="ImageContrastCheck" />
+
     <TextView
         android:id="@+id/tv_sub_title"
         android:layout_width="match_parent"

@@ -9,6 +9,7 @@ import io.legado.app.base.BaseViewModel
 import io.legado.app.constant.AppLog
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
+import io.legado.app.data.entities.BookChapter
 import io.legado.app.exception.NoStackTraceException
 import io.legado.app.model.ReadBook
 import io.legado.app.model.localBook.LocalBook
@@ -18,6 +19,8 @@ import io.legado.app.utils.createFileIfNotExist
 import io.legado.app.utils.openOutputStream
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.writeText
+import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.withContext
 
 class TocViewModel(application: Application) : BaseViewModel(application) {
     var bookUrl: String = ""
@@ -38,9 +41,9 @@ class TocViewModel(application: Application) : BaseViewModel(application) {
     fun upBookTocRule(book: Book, complete: (Throwable?) -> Unit) {
         execute {
             appDb.bookDao.update(book)
-            LocalBook.getChapterList(book).let {
+            LocalBook.getChapterList(book).let { toc ->
                 appDb.bookChapterDao.delByBook(book.bookUrl)
-                appDb.bookChapterDao.insert(*it.toTypedArray())
+                appDb.bookChapterDao.insert(*toc.toTypedArray())
                 appDb.bookDao.update(book)
                 ReadBook.onChapterListUpdated(book)
                 bookData.postValue(book)
@@ -65,6 +68,17 @@ class TocViewModel(application: Application) : BaseViewModel(application) {
             }
         }.onSuccess {
             it?.let(success)
+        }
+    }
+
+    suspend fun queryChapterList(searchKey: String?, end: Int): List<BookChapter> {
+        return withContext(IO) {
+            when {
+                searchKey.isNullOrBlank() ->
+                    appDb.bookChapterDao.getChapterList(bookUrl, 0, end)
+
+                else -> appDb.bookChapterDao.search(bookUrl, searchKey, 0, end)
+            }
         }
     }
 

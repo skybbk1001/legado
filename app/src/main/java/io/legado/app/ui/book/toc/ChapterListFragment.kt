@@ -11,15 +11,17 @@ import androidx.lifecycle.lifecycleScope
 import io.legado.app.R
 import io.legado.app.base.VMBaseFragment
 import io.legado.app.constant.EventBus
-import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
 import io.legado.app.databinding.FragmentChapterListBinding
 import io.legado.app.help.book.BookHelp
+import io.legado.app.help.book.isAudio
 import io.legado.app.help.book.isLocal
 import io.legado.app.help.book.simulatedTotalChapterNum
 import io.legado.app.lib.theme.bottomBackground
 import io.legado.app.lib.theme.getPrimaryTextColor
+import io.legado.app.model.AudioCache
+import io.legado.app.model.AudioCacheStateChanged
 import io.legado.app.ui.widget.recycler.UpLinearLayoutManager
 import io.legado.app.ui.widget.recycler.VerticalDivider
 import io.legado.app.utils.ColorUtils
@@ -29,7 +31,7 @@ import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers.Default
 import kotlinx.coroutines.Dispatchers.IO
-import kotlinx.coroutines.Dispatchers.Main
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -41,6 +43,9 @@ class ChapterListFragment : VMBaseFragment<TocViewModel>(R.layout.fragment_chapt
     private val mLayoutManager by lazy { UpLinearLayoutManager(requireContext()) }
     private val adapter by lazy { ChapterListAdapter(requireContext(), this) }
     private var durChapterIndex = 0
+    private var audioCacheStateReady = false
+    private val pendingAudioCacheChanges = linkedMapOf<Int, Boolean>()
+    private var initBookJob: Job? = null
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) = binding.run {
         viewModel.chapterListCallBack = this@ChapterListFragment
@@ -80,20 +85,41 @@ class ChapterListFragment : VMBaseFragment<TocViewModel>(R.layout.fragment_chapt
 
     @SuppressLint("SetTextI18n")
     private fun initBook(book: Book) {
-        lifecycleScope.launch {
-            upChapterList(null)
+        initBookJob?.cancel()
+        initBookJob = lifecycleScope.launch {
             durChapterIndex = book.durChapterIndex
             binding.tvCurrentChapterInfo.text =
                 "${book.durChapterTitle}(${book.durChapterIndex + 1}/${book.simulatedTotalChapterNum()})"
-            initCacheFileNames(book)
+
+            adapter.cacheFileNames.clear()
+            adapter.cachedChapterIndexes.clear()
+            audioCacheStateReady = !book.isAudio
+            pendingAudioCacheChanges.clear()
+
+            adapter.setItems(queryChapterList(null))
+
+            val (cacheFileNames, cachedChapterIndexes) = queryCacheState(book)
+            adapter.cacheFileNames.addAll(cacheFileNames)
+            adapter.cachedChapterIndexes.addAll(cachedChapterIndexes)
+            pendingAudioCacheChanges.forEach { (chapterIndex, cached) ->
+                if (cached) {
+                    adapter.cachedChapterIndexes.add(chapterIndex)
+                } else {
+                    adapter.cachedChapterIndexes.remove(chapterIndex)
+                }
+            }
+            pendingAudioCacheChanges.clear()
+            audioCacheStateReady = true
+            adapter.notifyItemRangeChanged(0, adapter.itemCount, true)
         }
     }
 
-    private fun initCacheFileNames(book: Book) {
-        lifecycleScope.launch(IO) {
-            adapter.cacheFileNames.addAll(BookHelp.getChapterFiles(book))
-            withContext(Main) {
-                adapter.notifyItemRangeChanged(0, adapter.itemCount, true)
+    private suspend fun queryCacheState(book: Book): Pair<Set<String>, Set<Int>> {
+        return withContext(IO) {
+            if (book.isAudio) {
+                Pair(emptySet(), AudioCache.listCachedChapterIndexes(book.bookUrl))
+            } else {
+                Pair(BookHelp.getChapterFiles(book).toSet(), emptySet())
             }
         }
     }
@@ -101,6 +127,9 @@ class ChapterListFragment : VMBaseFragment<TocViewModel>(R.layout.fragment_chapt
     override fun observeLiveBus() {
         observeEvent<Pair<Book, BookChapter>>(EventBus.SAVE_CONTENT) { (book, chapter) ->
             viewModel.bookData.value?.bookUrl?.let { bookUrl ->
+                if (viewModel.bookData.value?.isAudio == true) {
+                    return@observeEvent
+                }
                 if (book.bookUrl == bookUrl) {
                     adapter.cacheFileNames.add(chapter.getFileName())
                     if (viewModel.searchKey.isNullOrEmpty()) {
@@ -115,20 +144,44 @@ class ChapterListFragment : VMBaseFragment<TocViewModel>(R.layout.fragment_chapt
                 }
             }
         }
+        observeEvent<AudioCacheStateChanged>(EventBus.AUDIO_CACHE_CHANGED) { event ->
+            val currentBook = viewModel.bookData.value ?: return@observeEvent
+            if (!currentBook.isAudio || currentBook.bookUrl != event.bookUrl) return@observeEvent
+            if (!audioCacheStateReady) {
+                pendingAudioCacheChanges[event.chapterIndex] = event.cached
+                return@observeEvent
+            }
+            updateAudioChapterCacheState(event.chapterIndex, event.cached)
+        }
     }
 
     override fun upChapterList(searchKey: String?) {
         lifecycleScope.launch {
-            withContext(IO) {
-                val end = (book?.simulatedTotalChapterNum() ?: Int.MAX_VALUE) - 1
-                when {
-                    searchKey.isNullOrBlank() ->
-                        appDb.bookChapterDao.getChapterList(viewModel.bookUrl, 0, end)
+            adapter.setItems(queryChapterList(searchKey))
+        }
+    }
 
-                    else -> appDb.bookChapterDao.search(viewModel.bookUrl, searchKey, 0, end)
-                }
-            }.let {
-                adapter.setItems(it)
+    private suspend fun queryChapterList(searchKey: String?): List<BookChapter> {
+        val end = (book?.simulatedTotalChapterNum() ?: Int.MAX_VALUE) - 1
+        return viewModel.queryChapterList(searchKey, end)
+    }
+
+    private fun updateAudioChapterCacheState(chapterIndex: Int, cached: Boolean) {
+        if (cached) {
+            adapter.cachedChapterIndexes.add(chapterIndex)
+        } else {
+            adapter.cachedChapterIndexes.remove(chapterIndex)
+        }
+        if (viewModel.searchKey.isNullOrEmpty()) {
+            if (chapterIndex in 0 until adapter.itemCount) {
+                adapter.notifyItemChanged(chapterIndex, true)
+            }
+            return
+        }
+        adapter.getItems().forEachIndexed { index, bookChapter ->
+            if (bookChapter.index == chapterIndex) {
+                adapter.notifyItemChanged(index, true)
+                return
             }
         }
     }
@@ -166,6 +219,12 @@ class ChapterListFragment : VMBaseFragment<TocViewModel>(R.layout.fragment_chapt
 
     override val isLocalBook: Boolean
         get() = viewModel.bookData.value?.isLocal == true
+
+    override val isAudioBook: Boolean
+        get() = viewModel.bookData.value?.isAudio == true
+
+    override val isAudioCacheStateReady: Boolean
+        get() = audioCacheStateReady
 
     override fun durChapterIndex(): Int {
         return durChapterIndex

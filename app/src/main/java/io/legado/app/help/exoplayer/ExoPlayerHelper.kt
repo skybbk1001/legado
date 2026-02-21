@@ -2,9 +2,10 @@ package io.legado.app.help.exoplayer
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.net.Uri
+import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
 import androidx.media3.database.StandaloneDatabaseProvider
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.FileDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.Cache
@@ -42,6 +43,29 @@ object ExoPlayerHelper {
         return MediaItem.Builder().setUri(formatUrl).build()
     }
 
+    fun clearCacheByPlaybackUrl(url: String): Boolean {
+        val target = url.trim()
+        if (target.isEmpty()) return false
+        val pureUrl = target.substringBefore(SPLIT_TAG)
+        var removed = false
+        removed = clearCacheByKey(target) || removed
+        if (pureUrl != target) {
+            removed = clearCacheByKey(pureUrl) || removed
+        }
+        return removed
+    }
+
+    private fun clearCacheByKey(key: String): Boolean {
+        return kotlin.runCatching {
+            if (cache.getCachedSpans(key).isEmpty()) {
+                false
+            } else {
+                cache.removeResource(key)
+                true
+            }
+        }.getOrDefault(false)
+    }
+
     fun createHttpExoPlayer(context: Context): ExoPlayer {
         return ExoPlayer.Builder(context).setLoadControl(
             DefaultLoadControl.Builder().setBufferDurationsMs(
@@ -68,7 +92,7 @@ object ExoPlayerHelper {
             if (it.uri.toString().contains(SPLIT_TAG)) {
                 val urls = it.uri.toString().split(SPLIT_TAG)
                 val url = urls[0]
-                res = res.withUri(Uri.parse(url))
+                res = res.withUri(url.toUri())
                 try {
                     val headers: Map<String, String> = GSON.fromJson(urls[1], mapType)
                     okhttpDataFactory.setDefaultRequestProperties(headers)
@@ -89,13 +113,20 @@ object ExoPlayerHelper {
         //使用自定义的CacheDataSource以支持设置UA
         CacheDataSource.Factory()
             .setCache(cache)
-            .setUpstreamDataSourceFactory(okhttpDataFactory)
+            .setUpstreamDataSourceFactory(defaultDataSourceFactory)
             .setCacheReadDataSourceFactory(FileDataSource.Factory())
             .setCacheWriteDataSinkFactory(
                 CacheDataSink.Factory()
                     .setCache(cache)
                     .setFragmentSize(CacheDataSink.DEFAULT_FRAGMENT_SIZE)
             )
+    }
+
+    /**
+     * 默认数据源,本地(content/file)与网络(http/https)统一由它分发
+     */
+    private val defaultDataSourceFactory by lazy {
+        DefaultDataSource.Factory(appCtx, okhttpDataFactory)
     }
 
     /**
@@ -123,21 +154,5 @@ object ExoPlayerHelper {
             databaseProvider
         )
     }
-
-    /**
-     * 通过kotlin扩展函数+反射实现CacheDataSource.Factory设置默认请求头
-     * 需要添加混淆规则 -keepclassmembers class com.google.android.exoplayer2.upstream.cache.CacheDataSource$Factory{upstreamDataSourceFactory;}
-     * @param headers
-     * @return
-     */
-//    private fun CacheDataSource.Factory.setDefaultRequestProperties(headers: Map<String, String> = mapOf()): CacheDataSource.Factory {
-//        val declaredField = this.javaClass.getDeclaredField("upstreamDataSourceFactory")
-//        declaredField.isAccessible = true
-//        val df = declaredField[this] as DataSource.Factory
-//        if (df is OkHttpDataSource.Factory) {
-//            df.setDefaultRequestProperties(headers)
-//        }
-//        return this
-//    }
 
 }

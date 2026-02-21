@@ -181,7 +181,6 @@ class App : Application() {
      * 创建通知ID
      */
     private fun createNotificationChannels() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val downloadChannel = NotificationChannel(
             channelIdDownload,
             getString(R.string.action_download),
@@ -226,7 +225,6 @@ class App : Application() {
     }
 
     private fun initRhino() {
-        RhinoScriptEngine
         RhinoWrapFactory.register(BookSource::class.java, NativeBaseSource.factory)
         RhinoWrapFactory.register(RssSource::class.java, NativeBaseSource.factory)
         RhinoWrapFactory.register(HttpTTS::class.java, NativeBaseSource.factory)

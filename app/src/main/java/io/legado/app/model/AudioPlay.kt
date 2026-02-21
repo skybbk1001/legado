@@ -67,6 +67,7 @@ object AudioPlay : CoroutineScope by MainScope() {
     var inBookshelf = false
     var bookSource: BookSource? = null
     val loadingChapters = arrayListOf<Int>()
+    private val skipCacheOnceKeys = hashSetOf<String>()
 
     fun changePlayMode() {
         playMode = playMode.next()
@@ -123,6 +124,22 @@ object AudioPlay : CoroutineScope by MainScope() {
         }
     }
 
+    fun skipCacheOnce(bookUrl: String, chapterIndex: Int) {
+        synchronized(this) {
+            skipCacheOnceKeys.add(skipCacheKey(bookUrl, chapterIndex))
+        }
+    }
+
+    private fun consumeSkipCacheOnce(bookUrl: String, chapterIndex: Int): Boolean {
+        synchronized(this) {
+            return skipCacheOnceKeys.remove(skipCacheKey(bookUrl, chapterIndex))
+        }
+    }
+
+    private fun skipCacheKey(bookUrl: String, chapterIndex: Int): String {
+        return "$bookUrl#$chapterIndex"
+    }
+
     fun loadOrUpPlayUrl() {
         if (durPlayUrl.isEmpty()) {
             loadPlayUrl()
@@ -138,39 +155,52 @@ object AudioPlay : CoroutineScope by MainScope() {
         val index = durChapterIndex
         if (addLoading(index)) {
             val book = book
-            val bookSource = bookSource
-            if (book != null && bookSource != null) {
-                upDurChapter()
-                val chapter = durChapter
-                if (chapter == null) {
-                    removeLoading(index)
-                    return
-                }
-                if (chapter.isVolume) {
-                    skipTo(index + 1)
-                    removeLoading(index)
-                    return
-                }
-                upLoading(true)
-                WebBook.getContent(this, bookSource, book, chapter)
-                    .onSuccess { content ->
-                        if (content.isEmpty()) {
-                            appCtx.toastOnUi("未获取到资源链接")
-                        } else {
-                            contentLoadFinish(chapter, content)
-                        }
-                    }.onError {
-                        AppLog.put("获取资源链接出错\n$it", it, true)
-                        upLoading(false)
-                    }.onCancel {
-                        removeLoading(index)
-                    }.onFinally {
-                        removeLoading(index)
-                    }
-            } else {
+            if (book == null) {
                 removeLoading(index)
-                appCtx.toastOnUi("book or source is null")
+                appCtx.toastOnUi("书籍为空")
+                return
             }
+            upDurChapter()
+            if (!consumeSkipCacheOnce(book.bookUrl, index)) {
+                AudioCache.getCachedUriString(book.bookUrl, index)?.let { cachedUri ->
+                    durPlayUrl = cachedUri
+                    upPlayUrl()
+                    removeLoading(index)
+                    return
+                }
+            }
+            val bookSource = bookSource
+            if (bookSource == null) {
+                removeLoading(index)
+                appCtx.toastOnUi("书源为空")
+                return
+            }
+            val chapter = durChapter
+            if (chapter == null) {
+                removeLoading(index)
+                return
+            }
+            if (chapter.isVolume) {
+                skipTo(index + 1)
+                removeLoading(index)
+                return
+            }
+            upLoading(true)
+            WebBook.getContent(this, bookSource, book, chapter, needSave = false)
+                .onSuccess { content ->
+                    if (content.isEmpty()) {
+                        appCtx.toastOnUi("未获取到资源链接")
+                    } else {
+                        contentLoadFinish(chapter, content)
+                    }
+                }.onError {
+                    AppLog.put("获取资源链接出错\n$it", it, true)
+                    upLoading(false)
+                }.onCancel {
+                    removeLoading(index)
+                }.onFinally {
+                    removeLoading(index)
+                }
         }
     }
 

@@ -246,6 +246,34 @@ data class Book(
         return config.ttsEngine
     }
 
+    fun setAudioSkipEnabled(enabled: Boolean?) {
+        config.audioSkipEnabled = enabled
+    }
+
+    fun getAudioSkipEnabled(): Boolean {
+        return config.audioSkipEnabled ?: AppConfig.audioSkipEnabled
+    }
+
+    fun setAudioIntroMs(value: Int?) {
+        config.audioIntroMs = value?.coerceAtLeast(0)
+    }
+
+    fun getAudioIntroMs(): Int {
+        return config.audioIntroMs ?: AppConfig.audioSkipIntroMs
+    }
+
+    fun setAudioOutroMs(value: Int?) {
+        config.audioOutroMs = value?.coerceAtLeast(0)
+    }
+
+    fun getAudioOutroMs(): Int {
+        return config.audioOutroMs ?: AppConfig.audioSkipOutroMs
+    }
+
+    fun getAudioSkipMinDurationMs(): Int {
+        return config.audioSkipMinDurationMs ?: AppConfig.audioSkipMinDurationMs
+    }
+
     fun setSplitLongChapter(limitLongContent: Boolean) {
         config.splitLongChapter = limitLongContent
     }
@@ -398,6 +426,10 @@ data class Book(
         var useReplaceRule: Boolean? = null,// 正文使用净化替换规则
         var delTag: Long = 0L,//去除标签
         var ttsEngine: String? = null,
+        var audioSkipEnabled: Boolean? = null,
+        var audioIntroMs: Int? = null,
+        var audioOutroMs: Int? = null,
+        var audioSkipMinDurationMs: Int? = null,
         var splitLongChapter: Boolean = true,
         var readSimulating: Boolean = false,
         var startDate: LocalDate? = null,

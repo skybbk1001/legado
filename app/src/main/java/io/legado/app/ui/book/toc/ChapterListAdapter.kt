@@ -29,6 +29,7 @@ class ChapterListAdapter(context: Context, val callback: Callback) :
     DiffRecyclerAdapter<BookChapter, ItemChapterListBinding>(context) {
 
     val cacheFileNames = hashSetOf<String>()
+    val cachedChapterIndexes = hashSetOf<Int>()
     private val displayTitleMap = ConcurrentHashMap<String, String>()
     private val handler = Handler(Looper.getMainLooper())
 
@@ -126,7 +127,11 @@ class ChapterListAdapter(context: Context, val callback: Callback) :
             val isDur = callback.durChapterIndex() == item.index
             val cached = callback.isLocalBook
                     || item.isVolume
-                    || cacheFileNames.contains(item.getFileName())
+                    || if (callback.isAudioBook) {
+                        !callback.isAudioCacheStateReady || cachedChapterIndexes.contains(item.index)
+                    } else {
+                        cacheFileNames.contains(item.getFileName())
+                    }
             if (payloads.isEmpty()) {
                 if (isDur) {
                     tvChapterName.setTextColor(context.accentColor)
@@ -201,6 +206,8 @@ class ChapterListAdapter(context: Context, val callback: Callback) :
         val scope: CoroutineScope
         val book: Book?
         val isLocalBook: Boolean
+        val isAudioBook: Boolean
+        val isAudioCacheStateReady: Boolean
         fun openChapter(bookChapter: BookChapter)
         fun durChapterIndex(): Int
         fun onListChanged()

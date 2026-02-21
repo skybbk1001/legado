@@ -15,9 +15,11 @@ import android.os.PowerManager
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
+import androidx.core.net.toUri
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.media.AudioFocusRequestCompat
+import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -34,6 +36,7 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.help.exoplayer.ExoPlayerHelper
 import io.legado.app.help.glide.ImageLoader
+import io.legado.app.model.AudioCache
 import io.legado.app.model.AudioPlay
 import io.legado.app.model.analyzeRule.AnalyzeUrl
 import io.legado.app.model.analyzeRule.AnalyzeUrl.Companion.getMediaItem
@@ -55,6 +58,8 @@ import splitties.systemservices.audioManager
 import splitties.systemservices.notificationManager
 import splitties.systemservices.powerManager
 import splitties.systemservices.wifiManager
+import java.io.File
+import kotlin.math.max
 
 /**
  * 音频播放服务
@@ -114,6 +119,9 @@ class AudioPlayService : BaseService(),
     private var upNotificationJob: Coroutine<*>? = null
     private var upPlayProgressJob: Job? = null
     private var playSpeed: Float = 1f
+    private var skipChapterIndex: Int = -1
+    private var introApplied = false
+    private var outroTriggered = false
     private var cover: Bitmap =
         BitmapFactory.decodeResource(appCtx.resources, R.drawable.icon_read_book)
 
@@ -149,6 +157,7 @@ class AudioPlayService : BaseService(),
                     pause = false
                     position = AudioPlay.book?.durChapterPos ?: 0
                     url = AudioPlay.durPlayUrl
+                    resetSkipState()
                     play()
                 }
 
@@ -158,6 +167,7 @@ class AudioPlayService : BaseService(),
                     pause = false
                     position = 0
                     url = AudioPlay.durPlayUrl
+                    resetSkipState()
                     play()
                 }
 
@@ -229,7 +239,8 @@ class AudioPlayService : BaseService(),
                 chapter = AudioPlay.durChapter,
                 coroutineContext = coroutineContext
             )
-            exoPlayer.setMediaItem(analyzeUrl.getMediaItem())
+            val mediaItem = localMediaItem(url) ?: analyzeUrl.getMediaItem()
+            exoPlayer.setMediaItem(mediaItem)
             exoPlayer.playWhenReady = true
             exoPlayer.seekTo(position.toLong())
             exoPlayer.prepare()
@@ -300,6 +311,10 @@ class AudioPlayService : BaseService(),
     private fun adjustProgress(position: Int) {
         this.position = position
         exoPlayer.seekTo(position.toLong())
+        if (position > 1_000) {
+            introApplied = true
+        }
+        outroTriggered = false
     }
 
     /**
@@ -345,6 +360,7 @@ class AudioPlayService : BaseService(),
                 upMediaMetadata()
                 upPlayProgress()
                 AudioPlay.saveDurChapter(exoPlayer.duration)
+                tryAutoSkipIntro()
             }
 
             Player.STATE_ENDED -> {
@@ -373,12 +389,29 @@ class AudioPlayService : BaseService(),
      */
     override fun onPlayerError(error: PlaybackException) {
         super.onPlayerError(error)
+        if (tryRecoverFromBrokenCache(error)) return
         AudioPlay.status = Status.STOP
         postEvent(EventBus.AUDIO_STATE, Status.STOP)
         AudioPlay.upLoading(false)
         val errorMsg = "音频播放出错\n${error.errorCodeName} ${error.errorCode}"
         AppLog.put(errorMsg, error)
         toastOnUi(errorMsg)
+    }
+
+    private fun tryRecoverFromBrokenCache(error: PlaybackException): Boolean {
+        val book = AudioPlay.book ?: return false
+        val chapterIndex = AudioPlay.durChapterIndex
+        val cachedUri = AudioCache.getCachedUriString(book.bookUrl, chapterIndex) ?: return false
+        if (url != cachedUri) return false
+        AudioCache.removeCachedChapter(book.bookUrl, chapterIndex)
+        AudioPlay.skipCacheOnce(book.bookUrl, chapterIndex)
+        AudioPlay.durPlayUrl = ""
+        exoPlayer.stop()
+        upPlayProgressJob?.cancel()
+        AudioPlay.loadOrUpPlayUrl()
+        toastOnUi(R.string.audio_cache_corrupted_retry)
+        AppLog.put("检测到缓存损坏,已回源重试 ${book.name}-${chapterIndex}", error)
+        return true
     }
 
     private fun setTimer(minute: Int) {
@@ -429,6 +462,9 @@ class AudioPlayService : BaseService(),
         upPlayProgressJob?.cancel()
         upPlayProgressJob = lifecycleScope.launch {
             while (isActive) {
+                if (tryAutoSkipOutro()) {
+                    break
+                }
                 //更新buffer位置
                 AudioPlay.playPositionChanged(exoPlayer.currentPosition.toInt())
                 postEvent(EventBus.AUDIO_BUFFER_PROGRESS, exoPlayer.bufferedPosition.toInt())
@@ -438,6 +474,107 @@ class AudioPlayService : BaseService(),
                 delay(1000)
             }
         }
+    }
+
+    private fun localMediaItem(url: String): MediaItem? {
+        return when {
+            url.startsWith("content://", true) -> MediaItem.fromUri(url.toUri())
+            url.startsWith("file:", true) -> {
+                val uri = url.toUri()
+                val localPath = uri.path
+                if (!localPath.isNullOrBlank() && File(localPath).exists()) {
+                    MediaItem.fromUri(File(localPath).toUri())
+                } else {
+                    MediaItem.fromUri(uri)
+                }
+            }
+            File(url).exists() -> MediaItem.fromUri(File(url).toUri())
+            else -> null
+        }
+    }
+
+    private fun resetSkipState() {
+        skipChapterIndex = AudioPlay.durChapterIndex
+        introApplied = false
+        outroTriggered = false
+    }
+
+    private fun ensureSkipStateForChapter() {
+        val chapterIndex = AudioPlay.durChapterIndex
+        if (skipChapterIndex != chapterIndex) {
+            resetSkipState()
+        }
+    }
+
+    private fun isAudioSkipEnabled(): Boolean {
+        return AudioPlay.book?.getAudioSkipEnabled() == true
+    }
+
+    private fun getIntroMs(): Int {
+        return AudioPlay.book?.getAudioIntroMs() ?: 0
+    }
+
+    private fun getOutroMs(): Int {
+        return AudioPlay.book?.getAudioOutroMs() ?: 0
+    }
+
+    private fun getSkipMinDurationMs(): Int {
+        return AudioPlay.book?.getAudioSkipMinDurationMs() ?: 0
+    }
+
+    private fun isDurationValidForSkip(durationMs: Int, introMs: Int, outroMs: Int): Boolean {
+        if (durationMs <= 0) return false
+        if (durationMs < getSkipMinDurationMs()) return false
+        return durationMs > introMs + outroMs + 5_000
+    }
+
+    private fun tryAutoSkipIntro() {
+        ensureSkipStateForChapter()
+        if (introApplied || !isAudioSkipEnabled()) return
+        val introMs = getIntroMs()
+        if (introMs <= 0) {
+            introApplied = true
+            return
+        }
+        if (position > 1_000 || exoPlayer.currentPosition > 1_000) {
+            introApplied = true
+            return
+        }
+        val duration = exoPlayer.duration.toInt()
+        if (!isDurationValidForSkip(duration, introMs, getOutroMs())) {
+            introApplied = true
+            return
+        }
+        val seekPos = max(0, introMs)
+        exoPlayer.seekTo(seekPos.toLong())
+        position = seekPos
+        AudioPlay.playPositionChanged(seekPos)
+        postEvent(EventBus.AUDIO_PROGRESS, seekPos)
+        introApplied = true
+    }
+
+    private fun tryAutoSkipOutro(): Boolean {
+        ensureSkipStateForChapter()
+        if (outroTriggered || !isAudioSkipEnabled()) return false
+        val outroMs = getOutroMs()
+        if (outroMs <= 0) {
+            outroTriggered = true
+            return false
+        }
+        val duration = exoPlayer.duration.toInt()
+        val introMs = getIntroMs()
+        if (!isDurationValidForSkip(duration, introMs, outroMs)) {
+            outroTriggered = true
+            return false
+        }
+        val current = exoPlayer.currentPosition.toInt()
+        if (current >= duration - outroMs) {
+            outroTriggered = true
+            AudioPlay.playPositionChanged(current)
+            AudioPlay.next()
+            return true
+        }
+        return false
     }
 
     /**
