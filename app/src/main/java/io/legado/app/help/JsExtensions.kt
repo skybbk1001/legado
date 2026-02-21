@@ -259,6 +259,53 @@ interface JsExtensions : JsEncodeUtils {
     }
 
     /**
+     * 图片OCR（中文模型）
+     * @param image 支持 http(s) url、data:image/...;base64,...、缓存目录相对路径
+     */
+    fun ocr(image: String): String {
+        rhinoContext.ensureActive()
+        if (image.isBlank()) {
+            return ""
+        }
+        return kotlin.runCatching {
+            val bytes = resolveOcrImageBytes(image.trim())
+            MlKitOcr.recognize(bytes)
+        }.onFailure {
+            AppLog.put("ocr($image) error\n${it.localizedMessage}", it)
+        }.getOrElse {
+            throw NoStackTraceException("OCR识别失败: ${it.localizedMessage ?: it.javaClass.simpleName}")
+        }
+    }
+
+    private fun resolveOcrImageBytes(image: String): ByteArray {
+        return when {
+            image.startsWith("data:image", ignoreCase = true) -> decodeImageDataUrl(image)
+            image.isAbsUrl() -> AnalyzeUrl(
+                image,
+                source = getSource(),
+                coroutineContext = context
+            ).getByteArray()
+
+            else -> readFile(image)
+                ?: throw NoStackTraceException("OCR本地图片不存在: $image")
+        }
+    }
+
+    private fun decodeImageDataUrl(dataUrl: String): ByteArray {
+        val commaIndex = dataUrl.indexOf(',')
+        if (commaIndex <= 0) {
+            throw NoStackTraceException("OCR dataURL格式错误")
+        }
+        val meta = dataUrl.take(commaIndex)
+        if (!meta.contains(";base64", ignoreCase = true)) {
+            throw NoStackTraceException("OCR dataURL仅支持base64编码")
+        }
+        val base64Body = dataUrl.substring(commaIndex + 1).trim()
+        return base64DecodeToByteArray(base64Body)
+            ?: throw NoStackTraceException("OCR dataURL解码失败")
+    }
+
+    /**
      * 可从网络，本地文件(阅读私有数据目录相对路径)导入JavaScript脚本
      */
     fun importScript(path: String): String {

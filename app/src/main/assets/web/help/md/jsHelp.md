@@ -155,6 +155,15 @@ java.logType(var)
 ```js
 java.getVerificationCode(imageUrl)
 ```
+* 图片OCR（中文模型）
+```js
+// 1) 网络图片链接
+java.ocr("https://example.com/a.jpg")
+// 2) dataURL(base64)
+java.ocr("data:image/png;base64,iVBORw0KGgo...")
+// 3) 缓存目录相对路径
+java.ocr("/ocr/test.jpg")
+```
 * 弹窗提示
 ```js
 java.longToast(msg: Any?)
