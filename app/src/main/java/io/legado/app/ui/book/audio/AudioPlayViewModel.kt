@@ -88,7 +88,7 @@ class AudioPlayViewModel(application: Application) : BaseViewModel(application) 
     fun upSource() {
         execute {
             val book = AudioPlay.book ?: return@execute
-            AudioPlay.bookSource = book.getBookSource()
+            AudioPlay.setBookSource(book.getBookSource())
         }
     }
 
@@ -99,7 +99,7 @@ class AudioPlayViewModel(application: Application) : BaseViewModel(application) 
             AudioPlay.book?.delete()
             appDb.bookDao.insert(book)
             AudioPlay.book = book
-            AudioPlay.bookSource = source
+            AudioPlay.setBookSource(source)
             appDb.bookChapterDao.insert(*toc.toTypedArray())
             AudioPlay.upDurChapter()
         }.onFinally {

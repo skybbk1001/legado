@@ -476,6 +476,8 @@ class AudioPlayActivity :
         val chapter = AudioPlay.durChapter
         val chapterIndex = AudioPlay.durChapterIndex
         val source = AudioPlay.bookSource
+        AudioPlay.skipCacheOnce(book.bookUrl, chapterIndex)
+        AudioPlay.clearChapterPlayUrlPreload(book.bookUrl, chapterIndex)
         lifecycleScope.launch(IO) {
             val fileCacheRemoved = AudioCache.removeCachedChapter(book.bookUrl, chapterIndex)
             var playerCacheRemoved = false
