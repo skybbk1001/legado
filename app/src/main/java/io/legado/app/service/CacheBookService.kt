@@ -139,7 +139,7 @@ class CacheBookService : BaseService() {
             } else {
                 min(end, book.lastChapterIndex)
             }
-            cacheBook.addDownload(start, end2)
+            cacheBook.addDownload(start, end2, explicitTask = true)
             notificationContent = CacheBook.downloadSummary
             upCacheBookNotification()
         }.onFinally {

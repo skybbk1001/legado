@@ -263,13 +263,24 @@ interface JsExtensions : JsEncodeUtils {
      * @param image 支持 http(s) url、data:image/...;base64,...、缓存目录相对路径
      */
     fun ocr(image: String): String {
+        return ocr(image, "raw")
+    }
+
+    /**
+     * 图片OCR（中文模型）
+     * @param image 支持 http(s) url、data:image/...;base64,...、缓存目录相对路径
+     * @param mode 可选：raw(标准模式) / line / captcha
+     */
+    fun ocr(image: String, mode: String?): String {
         rhinoContext.ensureActive()
         if (image.isBlank()) {
             return ""
         }
+        val ocrMode = MlKitOcr.OcrMode.from(mode)
+            ?: throw NoStackTraceException("OCR mode无效: $mode，可选 raw(标准模式)/line/captcha")
         return kotlin.runCatching {
             val bytes = resolveOcrImageBytes(image.trim())
-            MlKitOcr.recognize(bytes)
+            MlKitOcr.recognize(bytes, ocrMode)
         }.onFailure {
             AppLog.put("ocr($image) error\n${it.localizedMessage}", it)
         }.getOrElse {

@@ -202,13 +202,12 @@ object FileUtils {
         startDirPath: String,
         allowExtensions: Array<String>? = null
     ): Array<File>? {
-        val dirs: Array<File>?
         val files: Array<File>? = if (allowExtensions == null) {
             listFiles(startDirPath)
         } else {
             listFiles(startDirPath, allowExtensions)
         }
-        dirs = listDirs(startDirPath)
+        val dirs = listDirs(startDirPath)
         if (files == null) {
             return null
         }

@@ -3,7 +3,6 @@ package io.legado.app.ui.book.read
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.res.Configuration
-import android.net.Uri
 import android.os.Bundle
 import android.os.Looper
 import android.view.Gravity
@@ -17,6 +16,7 @@ import androidx.activity.addCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.PopupMenu
+import androidx.core.net.toUri
 import androidx.core.view.get
 import androidx.core.view.size
 import androidx.lifecycle.lifecycleScope
@@ -1435,7 +1435,7 @@ class ReadBookActivity : BaseReadBookActivity(),
                             value = src
                         }
                     } else {
-                        viewModel.saveImage(src, Uri.parse(path))
+                        viewModel.saveImage(src, path.toUri())
                     }
                 }
 
@@ -1549,6 +1549,7 @@ class ReadBookActivity : BaseReadBookActivity(),
 
         Coroutine.async(lifecycleScope, IO) {
             val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, chapterIndex) ?: return@async null
+            if (chapter.isVolume) return@async null
             val analyzeUrl = AnalyzeUrl(
                 rule,
                 baseUrl = chapter.url,
@@ -1586,7 +1587,9 @@ class ReadBookActivity : BaseReadBookActivity(),
             releaseReviewSummaryLoadingKey(key)
             if (requestToken != reviewSummaryRequestToken) return@onError
             val curBook = ReadBook.book
-            val curKey = curBook?.let { buildReviewSummaryKey(it, ReadBook.durChapterIndex) }
+            val curKey = curBook?.let { book ->
+                buildReviewSummaryKey(book, ReadBook.durChapterIndex)
+            }
             if (curKey != key) return@onError
             ChapterProvider.clearReviewProviders()
             AppLog.put("加载段评统计出错\n${it.localizedMessage}", it)
@@ -1623,7 +1626,7 @@ class ReadBookActivity : BaseReadBookActivity(),
         val indices = intArrayOf(chapterIndex - 1, chapterIndex + 1)
         val token = reviewSummaryRequestToken
         for (idx in indices) {
-            if (idx < 0 || idx >= maxIndex) continue
+            if (idx !in 0 until maxIndex) continue
             val key = buildReviewSummaryKey(book, idx)
             if (reviewSummaryLoadingKey == key) continue
             val hasCache = synchronized(reviewSummaryCache) { reviewSummaryCache.containsKey(key) }
@@ -1637,6 +1640,7 @@ class ReadBookActivity : BaseReadBookActivity(),
             if (!shouldFetch) continue
             Coroutine.async(lifecycleScope, IO) {
                 val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, idx) ?: return@async null
+                if (chapter.isVolume) return@async null
                 val summaryUrl = rule.reviewSummaryUrl?.takeIf { it.isNotBlank() } ?: return@async null
                 val analyzeUrl = AnalyzeUrl(
                     summaryUrl,
@@ -1780,8 +1784,6 @@ class ReadBookActivity : BaseReadBookActivity(),
 
     private fun toAnyList(result: Any?): List<Any> {
         return when (result) {
-            is List<*> -> result.filterNotNull()
-            is Array<*> -> result.filterNotNull().toList()
             is NativeArray -> {
                 val list = ArrayList<Any>()
                 val size = result.length.toInt()
@@ -1793,6 +1795,8 @@ class ReadBookActivity : BaseReadBookActivity(),
                 }
                 list
             }
+            is List<*> -> result.filterNotNull()
+            is Array<*> -> result.filterNotNull().toList()
             is String -> {
                 if (result.isJson()) {
                     AnalyzeByJSonPath(result).getList("$") ?: emptyList()

@@ -157,12 +157,18 @@ java.getVerificationCode(imageUrl)
 ```
 * 图片OCR（中文模型）
 ```js
-// 1) 网络图片链接
+// 默认：标准模式(raw)
 java.ocr("https://example.com/a.jpg")
+// 1) 网络图片链接
+java.ocr("https://example.com/a.jpg", "raw")
 // 2) dataURL(base64)
-java.ocr("data:image/png;base64,iVBORw0KGgo...")
+java.ocr("data:image/png;base64,iVBORw0KGgo...", "raw")
 // 3) 缓存目录相对路径
-java.ocr("/ocr/test.jpg")
+java.ocr("/ocr/test.jpg", "raw")
+// 4) 自动行切分模式
+java.ocr("/ocr/test.jpg", "line")
+// 5) 验证码模式（保留大小写字母和数字，不回退）
+java.ocr("/ocr/captcha.jpg", "captcha")
 ```
 * 弹窗提示
 ```js

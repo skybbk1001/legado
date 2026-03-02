@@ -209,6 +209,7 @@ object CacheBook {
         private var waitingRetry = false
         private var isLoading = false
         private var notifiedComplete = false
+        private var hasExplicitCacheTask = false
 
         val waitCount get() = waitDownloadSet.size
         val onDownloadCount get() = onDownloadSet.size
@@ -243,15 +244,20 @@ object CacheBook {
             tasks.clear()
             isStopped = true
             isLoading = false
+            hasExplicitCacheTask = false
             postEvent(EventBus.UP_DOWNLOAD, book.bookUrl)
         }
 
         @Synchronized
-        fun addDownload(start: Int, end: Int) {
-            if (isStopped) {
+        fun addDownload(start: Int, end: Int, explicitTask: Boolean = false) {
+            val isIdle = waitDownloadSet.isEmpty() && onDownloadSet.isEmpty() && !isLoading
+            if (isStopped || isIdle) {
                 successSet.clear()
                 errorSet.clear()
                 notifiedComplete = false
+                hasExplicitCacheTask = explicitTask
+            } else if (explicitTask) {
+                hasExplicitCacheTask = true
             }
             isStopped = false
             for (i in start..end) {
@@ -305,15 +311,29 @@ object CacheBook {
         }
 
         @Synchronized
+        private fun onReadError(chapter: BookChapter, error: Throwable) {
+            if (error !is ConcurrentException) {
+                errorDownloadMap[chapter.primaryStr()] =
+                    (errorDownloadMap[chapter.primaryStr()] ?: 0) + 1
+            }
+            onDownloadSet.remove(chapter.index)
+        }
+
+        @Synchronized
         private fun onCancel(index: Int) {
             onDownloadSet.remove(index)
             if (!isStopped) waitDownloadSet.add(index)
         }
 
         @Synchronized
+        private fun onReadCancel(index: Int) {
+            onDownloadSet.remove(index)
+        }
+
+        @Synchronized
         private fun onFinally() {
             if (waitDownloadSet.isEmpty() && onDownloadSet.isEmpty()) {
-                if (!isStopped && !notifiedComplete) {
+                if (hasExplicitCacheTask && !isStopped && !notifiedComplete) {
                     notifiedComplete = true
                     notifyComplete()
                 }
@@ -433,9 +453,10 @@ object CacheBook {
                 return content
             } catch (e: Exception) {
                 if (e is CancellationException) {
-                    onCancel(chapter.index)
+                    onReadCancel(chapter.index)
+                    return "download canceled"
                 }
-                onError(chapter, e)
+                onReadError(chapter, e)
                 ReadBook.downloadFailChapters[chapter.index] =
                     (ReadBook.downloadFailChapters[chapter.index] ?: 0) + 1
                 return "获取正文失败\n${e.localizedMessage}"
@@ -470,12 +491,12 @@ object CacheBook {
                 ReadBook.downloadFailChapters.remove(chapter.index)
                 downloadFinish(chapter, content, resetPageOffset)
             }.onError {
-                onError(chapter, it)
+                onReadError(chapter, it)
                 ReadBook.downloadFailChapters[chapter.index] =
                     (ReadBook.downloadFailChapters[chapter.index] ?: 0) + 1
                 downloadFinish(chapter, "获取正文失败\n${it.localizedMessage}", resetPageOffset)
             }.onCancel {
-                onCancel(chapter.index)
+                onReadCancel(chapter.index)
                 downloadFinish(chapter, "download canceled", resetPageOffset, true)
             }.onFinally {
                 postEvent(EventBus.UP_DOWNLOAD, book.bookUrl)

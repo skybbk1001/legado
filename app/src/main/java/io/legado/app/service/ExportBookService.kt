@@ -2,6 +2,16 @@ package io.legado.app.service
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.Typeface
+import android.graphics.pdf.PdfDocument
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextPaint
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
@@ -21,6 +31,8 @@ import io.legado.app.help.AppWebDav
 import io.legado.app.help.book.BookHelp
 import io.legado.app.help.book.ContentProcessor
 import io.legado.app.help.book.getExportFileName
+import io.legado.app.help.book.getBookSource
+import io.legado.app.help.book.isImage
 import io.legado.app.help.book.isLocalModified
 import io.legado.app.help.config.AppConfig
 import io.legado.app.model.ReadBook
@@ -69,6 +81,7 @@ import splitties.systemservices.notificationManager
 import java.nio.charset.Charset
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.coroutineContext
+import kotlin.math.max
 import kotlin.math.min
 
 /**
@@ -187,17 +200,20 @@ class ExportBookService : BaseService() {
                         waitExportBooks.size
                     )
                     upExportNotification()
-                    if (exportConfig.type == "epub") {
-                        if (exportConfig.epubScope.isNullOrBlank()) {
-                            exportEpub(exportConfig.path, book)
-                        } else {
-                            CustomExporter(
-                                exportConfig.epubScope,
-                                exportConfig.epubSize
-                            ).export(exportConfig.path, book)
+                    when (exportConfig.type) {
+                        "epub" -> {
+                            if (exportConfig.epubScope.isNullOrBlank()) {
+                                exportEpub(exportConfig.path, book)
+                            } else {
+                                CustomExporter(
+                                    exportConfig.epubScope,
+                                    exportConfig.epubSize
+                                ).export(exportConfig.path, book)
+                            }
                         }
-                    } else {
-                        exportTxt(exportConfig.path, book)
+                        "pdf" -> exportPdf(exportConfig.path, book)
+                        "txt" -> exportTxt(exportConfig.path, book)
+                        else -> throw NoStackTraceException("未知导出类型: ${exportConfig.type}")
                     }
                     exportMsg[book.bookUrl] = getString(R.string.export_success)
                 } catch (e: Throwable) {
@@ -267,6 +283,203 @@ class ExportBookService : BaseService() {
             // 导出到webdav
             AppWebDav.exportWebDav(bookDoc.uri, filename)
         }
+    }
+
+    private suspend fun exportPdf(path: String, book: Book) {
+        exportMsg.remove(book.bookUrl)
+        postEvent(EventBus.EXPORT_BOOK, book.bookUrl)
+        val fileDoc = FileDoc.fromDir(path)
+        exportPdf(fileDoc, book)
+    }
+
+    private suspend fun exportPdf(fileDoc: FileDoc, book: Book) {
+        val filename = book.getExportFileName("pdf")
+        fileDoc.find(filename)?.delete()
+        val bookDoc = fileDoc.createFileIfNotExist(filename)
+
+        val pageWidth = 1080
+        val pageHeight = 1528
+        val margin = 48f
+        val contentWidth = pageWidth - margin * 2
+        val contentBottom = pageHeight - margin
+        val paragraphSpacing = 16f
+
+        val titlePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.BLACK
+            textSize = 42f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        val metaPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.DKGRAY
+            textSize = 26f
+        }
+        val bodyPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.BLACK
+            textSize = 30f
+        }
+        val chapterPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.BLACK
+            textSize = 34f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+
+        val useReplace = AppConfig.exportUseReplace && book.getUseReplaceRule()
+        val contentProcessor = ContentProcessor.get(book.name, book.origin)
+        val titleReplaceRules = contentProcessor.getTitleReplaceRules()
+        val chapterList = appDb.bookChapterDao.getChapterList(book.bookUrl)
+        val bookSource = if (book.isImage) book.getBookSource() else null
+        val pdf = PdfDocument()
+
+        var pageIndex = 0
+        var currentPage: PdfDocument.Page? = null
+        var y = margin
+
+        fun startPage() {
+            currentPage?.let { pdf.finishPage(it) }
+            val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, ++pageIndex).create()
+            currentPage = pdf.startPage(pageInfo).apply {
+                canvas.drawColor(Color.WHITE)
+            }
+            y = margin
+        }
+
+        fun drawTextBlock(text: String, paint: TextPaint, spacing: Float = paragraphSpacing) {
+            if (text.isBlank()) return
+            if (currentPage == null) startPage()
+            val layout = StaticLayout.Builder.obtain(
+                text.trim(),
+                0,
+                text.trim().length,
+                paint,
+                contentWidth.toInt()
+            ).setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                .setLineSpacing(0f, 1.2f)
+                .setIncludePad(false)
+                .build()
+            if (y + layout.height > contentBottom) {
+                startPage()
+            }
+            currentPage!!.canvas.run {
+                save()
+                translate(margin, y)
+                layout.draw(this)
+                restore()
+            }
+            y += layout.height + spacing
+        }
+
+        fun drawImage(path: String) {
+            val bitmap = decodeSampledBitmap(
+                path,
+                contentWidth.toInt(),
+                (pageHeight - margin * 2).toInt()
+            )
+                ?: return
+            try {
+                if (currentPage == null) startPage()
+                val pageDrawableHeight = (contentBottom - margin).coerceAtLeast(1f)
+                val scaleToWidth = contentWidth / bitmap.width.toFloat()
+                val finalScale = min(scaleToWidth, pageDrawableHeight / bitmap.height.toFloat())
+                val drawWidth = max(1f, bitmap.width * finalScale)
+                val drawHeight = max(1f, bitmap.height * finalScale)
+                if (y + drawHeight > contentBottom && y > margin + 1f) {
+                    startPage()
+                }
+                val left = margin + (contentWidth - drawWidth) / 2f
+                val rect = RectF(left, y, left + drawWidth, y + drawHeight)
+                currentPage!!.canvas.drawBitmap(bitmap, null, rect, null)
+                val imageSpacing = if (book.isImage) 0f else paragraphSpacing
+                y += drawHeight + imageSpacing
+            } finally {
+                if (!bitmap.isRecycled) {
+                    bitmap.recycle()
+                }
+            }
+        }
+
+        drawTextBlock(book.name, titlePaint, 20f)
+        drawTextBlock(getString(R.string.author_show, book.getRealAuthor()), metaPaint, 8f)
+        drawTextBlock(
+            getString(R.string.intro_show, "\n" + HtmlFormatter.format(book.getDisplayIntro())),
+            metaPaint,
+            24f
+        )
+
+        chapterList.forEachIndexed { index, chapter ->
+            postEvent(EventBus.EXPORT_BOOK, book.bookUrl)
+            exportProgress[book.bookUrl] = index
+
+            val chapterForExport = chapter.copy(isVip = false)
+            val chapterTitle = chapterForExport.getDisplayTitle(
+                titleReplaceRules,
+                useReplace = useReplace
+            )
+            if (!AppConfig.exportNoChapterName) {
+                drawTextBlock(chapterTitle.replace("\uD83D\uDD12", ""), chapterPaint, 18f)
+            }
+
+            val rawContent = BookHelp.getContent(book, chapterForExport)
+                ?: if (chapterForExport.isVolume) "" else "null"
+            val imagePaths = linkedSetOf<String>()
+            val imageMatcher = AppPattern.imgPattern.matcher(rawContent)
+            while (imageMatcher.find()) {
+                val src = imageMatcher.group(1) ?: continue
+                val absolute = NetworkUtils.getAbsoluteURL(chapterForExport.url, src)
+                var imgFile = BookHelp.getImage(book, absolute)
+                if (!imgFile.exists() && bookSource != null) {
+                    BookHelp.saveImage(bookSource, book, absolute, chapterForExport)
+                    imgFile = BookHelp.getImage(book, absolute)
+                }
+                if (imgFile.exists()) {
+                    imagePaths.add(imgFile.absolutePath)
+                }
+            }
+            if (!book.isImage) {
+                val textContent = contentProcessor.getContent(
+                    book,
+                    chapterForExport,
+                    rawContent,
+                    includeTitle = false,
+                    useReplace = useReplace,
+                    chineseConvert = false,
+                    reSegment = false
+                ).toString()
+                textContent.split("\n").forEach { line ->
+                    drawTextBlock(line, bodyPaint, 10f)
+                }
+            }
+            imagePaths.forEach { drawImage(it) }
+            y += 8f
+        }
+
+        currentPage?.let { pdf.finishPage(it) }
+        bookDoc.openOutputStream().getOrThrow().use { output ->
+            pdf.writeTo(output)
+        }
+        pdf.close()
+
+        if (AppConfig.exportToWebDav) {
+            AppWebDav.exportWebDav(bookDoc.uri, filename)
+        }
+    }
+
+    private fun decodeSampledBitmap(path: String, reqWidth: Int, reqHeight: Int): Bitmap? {
+        val options = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        BitmapFactory.decodeFile(path, options)
+        if (options.outWidth <= 0 || options.outHeight <= 0) return null
+        var sampleSize = 1
+        var halfWidth = options.outWidth / 2
+        var halfHeight = options.outHeight / 2
+        while ((halfWidth / sampleSize) >= reqWidth && (halfHeight / sampleSize) >= reqHeight) {
+            sampleSize *= 2
+        }
+        val decodeOptions = BitmapFactory.Options().apply {
+            inSampleSize = sampleSize
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+        }
+        return BitmapFactory.decodeFile(path, decodeOptions)
     }
 
     private suspend fun getAllContents(
