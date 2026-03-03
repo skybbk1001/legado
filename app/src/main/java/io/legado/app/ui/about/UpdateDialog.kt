@@ -24,7 +24,6 @@ class UpdateDialog() : BaseDialogFragment(R.layout.dialog_update) {
             putString("newVersion", updateInfo.tagName)
             putString("updateBody", updateInfo.updateLog)
             putString("url", updateInfo.downloadUrl)
-            putStringArrayList("urls", ArrayList(updateInfo.downloadUrls))
             putString("name", updateInfo.fileName)
         }
     }
@@ -57,14 +56,10 @@ class UpdateDialog() : BaseDialogFragment(R.layout.dialog_update) {
         binding.toolBar.setOnMenuItemClickListener {
             when (it.itemId) {
                 R.id.menu_download -> {
-                    val urls = arguments?.getStringArrayList("urls")?.filter { it.isNotBlank() }
                     val url = arguments?.getString("url")
                     val name = arguments?.getString("name")
-                    if (name != null) {
-                        when {
-                            !urls.isNullOrEmpty() -> Download.start(requireContext(), urls, name)
-                            !url.isNullOrBlank() -> Download.start(requireContext(), url, name)
-                        }
+                    if (url != null && name != null) {
+                        Download.start(requireContext(), url, name)
                         toastOnUi(R.string.download_start)
                     }
                 }
