@@ -1,6 +1,7 @@
 package io.legado.app.ui.autoTask
 
 import android.annotation.SuppressLint
+import android.content.res.ColorStateList
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.LayoutInflater
@@ -10,12 +11,13 @@ import androidx.recyclerview.widget.RecyclerView
 import io.legado.app.R
 import io.legado.app.databinding.ItemAutoTaskGroupBinding
 import io.legado.app.databinding.ItemSourceEditWebBinding
+import io.legado.app.databinding.ViewCodeEditFieldBinding
 import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.theme.ThemeStore
-import android.content.res.ColorStateList
 import io.legado.app.ui.widget.code.addJsPattern
 import io.legado.app.ui.widget.code.addJsonPattern
 import io.legado.app.ui.widget.code.addLegadoPattern
+import io.legado.app.ui.widget.code.bindCodeEditField
 import io.legado.app.ui.widget.text.EditEntity
 
 class AutoTaskEditAdapter(
@@ -99,9 +101,10 @@ class AutoTaskEditAdapter(
                     parent,
                     false
                 )
-                binding.editText.addLegadoPattern()
-                binding.editText.addJsonPattern()
-                binding.editText.addJsPattern()
+                val editText = binding.root.bindCodeEditField(R.id.codeField).editText
+                editText.addLegadoPattern()
+                editText.addJsonPattern()
+                editText.addJsPattern()
                 FieldHolder(binding)
             }
         }
@@ -128,8 +131,10 @@ class AutoTaskEditAdapter(
     inner class FieldHolder(
         private val binding: ItemSourceEditWebBinding
     ) : RecyclerView.ViewHolder(binding.root) {
+        private val codeFieldBinding: ViewCodeEditFieldBinding =
+            binding.root.bindCodeEditField(R.id.codeField)
 
-        fun bind(editEntity: EditEntity) = binding.run {
+        fun bind(editEntity: EditEntity) = with(codeFieldBinding) {
             editText.setTag(R.id.tag, editEntity.key)
             editText.maxLines = editEntityMaxLine
             if (editText.getTag(R.id.tag1) == null) {

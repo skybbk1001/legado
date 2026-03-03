@@ -20,8 +20,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:theme="?attr/actionBarStyle"
-            app:title="@string/speak_engine"
             app:popupTheme="@style/AppTheme.PopupOverlay"
+            app:title="@string/speak_engine"
             app:titleTextAppearance="@style/ToolbarTitle" />
 
         <androidx.core.widget.NestedScrollView
@@ -47,103 +47,33 @@
 
                 </io.legado.app.ui.widget.text.TextInputLayout>
 
-                <io.legado.app.ui.widget.text.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="url"
-                    tools:ignore="HardcodedText">
+                <include
+                    android:id="@+id/field_url"
+                    layout="@layout/view_code_edit_field" />
 
-                    <io.legado.app.ui.widget.code.CodeView
-                        android:id="@+id/tv_url"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        tools:ignore="TouchTargetSizeCheck,SpeakableTextPresentCheck" />
+                <include
+                    android:id="@+id/field_content_type"
+                    layout="@layout/view_code_edit_field" />
 
-                </io.legado.app.ui.widget.text.TextInputLayout>
+                <include
+                    android:id="@+id/field_concurrent_rate"
+                    layout="@layout/view_code_edit_field" />
 
-                <io.legado.app.ui.widget.text.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="Content-Type"
-                    tools:ignore="HardcodedText">
+                <include
+                    android:id="@+id/field_login_url"
+                    layout="@layout/view_code_edit_field" />
 
-                    <io.legado.app.ui.widget.code.CodeView
-                        android:id="@+id/tv_content_type"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        tools:ignore="TouchTargetSizeCheck,SpeakableTextPresentCheck" />
+                <include
+                    android:id="@+id/field_login_ui"
+                    layout="@layout/view_code_edit_field" />
 
-                </io.legado.app.ui.widget.text.TextInputLayout>
+                <include
+                    android:id="@+id/field_login_check_js"
+                    layout="@layout/view_code_edit_field" />
 
-                <io.legado.app.ui.widget.text.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="@string/concurrent_rate"
-                    tools:ignore="HardcodedText">
-
-                    <io.legado.app.ui.widget.code.CodeView
-                        android:id="@+id/tv_concurrent_rate"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        tools:ignore="TouchTargetSizeCheck,SpeakableTextPresentCheck" />
-
-                </io.legado.app.ui.widget.text.TextInputLayout>
-
-                <io.legado.app.ui.widget.text.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="@string/login_url"
-                    tools:ignore="HardcodedText">
-
-                    <io.legado.app.ui.widget.code.CodeView
-                        android:id="@+id/tv_login_url"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        tools:ignore="SpeakableTextPresentCheck,TouchTargetSizeCheck" />
-
-                </io.legado.app.ui.widget.text.TextInputLayout>
-
-                <io.legado.app.ui.widget.text.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="@string/login_ui"
-                    tools:ignore="HardcodedText">
-
-                    <io.legado.app.ui.widget.code.CodeView
-                        android:id="@+id/tv_login_ui"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        tools:ignore="SpeakableTextPresentCheck,TouchTargetSizeCheck" />
-
-                </io.legado.app.ui.widget.text.TextInputLayout>
-
-                <io.legado.app.ui.widget.text.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="@string/login_check_js"
-                    tools:ignore="HardcodedText">
-
-                    <io.legado.app.ui.widget.code.CodeView
-                        android:id="@+id/tv_login_check_js"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        tools:ignore="TouchTargetSizeCheck,SpeakableTextPresentCheck" />
-
-                </io.legado.app.ui.widget.text.TextInputLayout>
-
-                <io.legado.app.ui.widget.text.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="@string/source_http_header"
-                    tools:ignore="HardcodedText">
-
-                    <io.legado.app.ui.widget.code.CodeView
-                        android:id="@+id/tv_headers"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        tools:ignore="TouchTargetSizeCheck,SpeakableTextPresentCheck" />
-
-                </io.legado.app.ui.widget.text.TextInputLayout>
+                <include
+                    android:id="@+id/field_headers"
+                    layout="@layout/view_code_edit_field" />
 
             </LinearLayout>
 
