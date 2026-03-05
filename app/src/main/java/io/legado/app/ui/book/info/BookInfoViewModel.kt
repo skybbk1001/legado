@@ -283,8 +283,22 @@ class BookInfoViewModel(application: Application) : BaseViewModel(application) {
                 )
                 var mFileName = UrlUtil.getFileName(analyzeUrl)
                     ?: fileNameNoExtension
-                analyzeUrl.type?.let { suffix ->
-                    mFileName += ".${suffix}"
+                analyzeUrl.type
+                    ?.trim()
+                    ?.trimStart('.')
+                    ?.takeIf { suffix -> suffix.isNotEmpty() }
+                    ?.let { suffix ->
+                        val dotIndex = mFileName.lastIndexOf('.')
+                        mFileName = if (dotIndex > 0 && dotIndex < mFileName.length - 1) {
+                            val currentSuffix = mFileName.substring(dotIndex + 1)
+                            if (currentSuffix.equals(suffix, ignoreCase = true)) {
+                                mFileName
+                            } else {
+                                "${mFileName.substring(0, dotIndex)}.$suffix"
+                            }
+                        } else {
+                            "$mFileName.$suffix"
+                        }
                 }
                 WebFile(it, mFileName)
             }
