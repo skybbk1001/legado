@@ -1559,7 +1559,7 @@ class ReadBookActivity : BaseReadBookActivity(),
                 chapter = chapter,
                 coroutineContext = coroutineContext
             )
-            val body = analyzeUrl.getStrResponseAwait(useWebView = false).body
+            val body = analyzeUrl.getStrResponseAwait().body
             parseReviewSummary(
                 body,
                 reviewRule,
@@ -1651,7 +1651,7 @@ class ReadBookActivity : BaseReadBookActivity(),
                     chapter = chapter,
                     coroutineContext = coroutineContext
                 )
-                val body = analyzeUrl.getStrResponseAwait(useWebView = false).body
+                val body = analyzeUrl.getStrResponseAwait().body
                 parseReviewSummary(
                     body,
                     rule,

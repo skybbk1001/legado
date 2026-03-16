@@ -47,17 +47,17 @@ abstract class BaseBookshelfFragment(layoutId: Int) : VMBaseFragment<BookshelfVi
     val activityViewModel by activityViewModels<MainViewModel>()
     override val viewModel by viewModels<BookshelfViewModel>()
 
-    private val importBookshelf = registerForActivityResult(HandleFileContract()) {
+    private val importBookshelf = registerForActivityResult(HandleFileContract()) { result ->
         kotlin.runCatching {
-            it.uri?.readText(requireContext())?.let { text ->
+            result.uri?.readText(requireContext())?.let { text ->
                 viewModel.importBookshelf(text, groupId)
             }
-        }.onFailure {
-            toastOnUi(it.localizedMessage ?: "ERROR")
+        }.onFailure { error ->
+            toastOnUi(error.localizedMessage ?: "ERROR")
         }
     }
-    private val exportResult = registerForActivityResult(HandleFileContract()) {
-        it.uri?.let { uri ->
+    private val exportResult = registerForActivityResult(HandleFileContract()) { result ->
+        result.uri?.let { uri ->
             alert(R.string.export_success) {
                 if (uri.toString().isAbsUrl()) {
                     setMessage(DirectLinkUpload.getSummary())
@@ -155,7 +155,7 @@ abstract class BaseBookshelfFragment(layoutId: Int) : VMBaseFragment<BookshelfVi
                 alertBinding.editView.text?.toString()?.let {
                     waitDialog.setText("添加中...")
                     waitDialog.show()
-                    viewModel.addBookByUrl(it)
+                    viewModel.addBookByUrl(it, groupId)
                 }
             }
             cancelButton()

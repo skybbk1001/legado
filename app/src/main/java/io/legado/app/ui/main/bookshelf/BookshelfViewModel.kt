@@ -35,9 +35,18 @@ class BookshelfViewModel(application: Application) : BaseViewModel(application) 
     val addBookProgressLiveData = MutableLiveData(-1)
     var addBookJob: Coroutine<*>? = null
 
-    fun addBookByUrl(bookUrls: String) {
+    private fun getTargetGroupId(groupId: Long): Long? {
+        return if (groupId > 0) {
+            groupId
+        } else {
+            null
+        }
+    }
+
+    fun addBookByUrl(bookUrls: String, groupId: Long = 0) {
         var successCount = 0
         addBookJob = execute {
+            val targetGroupId = getTargetGroupId(groupId)
             val hasBookUrlPattern: List<BookSourcePart> by lazy {
                 appDb.bookSourceDao.hasBookUrlPattern
             }
@@ -45,7 +54,14 @@ class BookshelfViewModel(application: Application) : BaseViewModel(application) 
             for (url in urls) {
                 val bookUrl = url.trim()
                 if (bookUrl.isEmpty()) continue
-                if (appDb.bookDao.getBook(bookUrl) != null) {
+                val existedBook = appDb.bookDao.getBook(bookUrl)
+                if (existedBook != null) {
+                    targetGroupId?.let { currentGroupId ->
+                        if (existedBook.group and currentGroupId != currentGroupId) {
+                            existedBook.group = existedBook.group or currentGroupId
+                            existedBook.save()
+                        }
+                    }
                     successCount++
                     continue
                 }
@@ -69,18 +85,24 @@ class BookshelfViewModel(application: Application) : BaseViewModel(application) 
                     origin = bookSource.bookSourceUrl,
                     originName = bookSource.bookSourceName
                 )
+                targetGroupId?.let { currentGroupId ->
+                    book.group = currentGroupId
+                }
                 kotlin.runCatching {
                     WebBook.getBookInfoAwait(bookSource, book)
-                }.onSuccess {
-                    val dbBook = appDb.bookDao.getBook(it.name, it.author)
+                }.onSuccess { fetchedBook ->
+                    val dbBook = appDb.bookDao.getBook(fetchedBook.name, fetchedBook.author)
                     if (dbBook != null) {
-                        val toc = WebBook.getChapterListAwait(bookSource, it).getOrThrow()
-                        dbBook.migrateTo(it, toc)
-                        appDb.bookDao.insert(it)
+                        val toc = WebBook.getChapterListAwait(bookSource, fetchedBook).getOrThrow()
+                        dbBook.migrateTo(fetchedBook, toc)
+                        targetGroupId?.let { id ->
+                            fetchedBook.group = fetchedBook.group or id
+                        }
+                        appDb.bookDao.insert(fetchedBook)
                         appDb.bookChapterDao.insert(*toc.toTypedArray())
                     } else {
-                        it.order = appDb.bookDao.minOrder - 1
-                        it.save()
+                        fetchedBook.order = appDb.bookDao.minOrder - 1
+                        fetchedBook.save()
                     }
                     successCount++
                     addBookProgressLiveData.postValue(successCount)
@@ -92,8 +114,8 @@ class BookshelfViewModel(application: Application) : BaseViewModel(application) 
             } else {
                 context.toastOnUi("添加网址失败")
             }
-        }.onError {
-            AppLog.put("添加网址出错\n${it.localizedMessage}", it, true)
+        }.onError { error ->
+            AppLog.put("添加网址出错\n${error.localizedMessage}", error, true)
         }.onFinally {
             addBookProgressLiveData.postValue(-1)
         }
@@ -101,7 +123,7 @@ class BookshelfViewModel(application: Application) : BaseViewModel(application) 
 
     fun exportBookshelf(books: List<Book>?, success: (file: File) -> Unit) {
         execute {
-            books?.let {
+            books?.let { bookList ->
                 val path = "${context.filesDir}/books.json"
                 FileUtils.delete(path)
                 val file = FileUtils.createFileWithReplace(path)
@@ -109,11 +131,11 @@ class BookshelfViewModel(application: Application) : BaseViewModel(application) 
                     val writer = JsonWriter(OutputStreamWriter(out, "UTF-8"))
                     writer.setIndent("  ")
                     writer.beginArray()
-                    books.forEach {
+                    bookList.forEach { book ->
                         val bookMap = hashMapOf<String, String?>()
-                        bookMap["name"] = it.name
-                        bookMap["author"] = it.author
-                        bookMap["intro"] = it.getDisplayIntro()
+                        bookMap["name"] = book.name
+                        bookMap["author"] = book.author
+                        bookMap["intro"] = book.getDisplayIntro()
                         GSON.toJson(bookMap, bookMap::class.java, writer)
                     }
                     writer.endArray()
@@ -121,10 +143,10 @@ class BookshelfViewModel(application: Application) : BaseViewModel(application) 
                 }
                 file
             } ?: throw NoStackTraceException("书籍不能为空")
-        }.onSuccess {
-            success(it)
-        }.onError {
-            context.toastOnUi("导出书籍出错\n${it.localizedMessage}")
+        }.onSuccess { file ->
+            success(file)
+        }.onError { error ->
+            context.toastOnUi("导出书籍出错\n${error.localizedMessage}")
         }
     }
 
@@ -135,8 +157,8 @@ class BookshelfViewModel(application: Application) : BaseViewModel(application) 
                 text.isAbsUrl() -> {
                     okHttpClient.newCallResponseBody {
                         url(text)
-                    }.decompressed().text().let {
-                        importBookshelf(it, groupId)
+                    }.decompressed().text().let { responseText ->
+                        importBookshelf(responseText, groupId)
                     }
                 }
 
@@ -148,8 +170,8 @@ class BookshelfViewModel(application: Application) : BaseViewModel(application) 
                     throw NoStackTraceException("格式不对")
                 }
             }
-        }.onError {
-            context.toastOnUi(it.localizedMessage ?: "ERROR")
+        }.onError { error ->
+            context.toastOnUi(error.localizedMessage ?: "ERROR")
         }
     }
 
@@ -167,8 +189,8 @@ class BookshelfViewModel(application: Application) : BaseViewModel(application) 
                     WebBook.preciseSearch(
                         this, bookSourceParts, name, author,
                         semaphore = semaphore
-                    ).onSuccess {
-                        val book = it.first
+                    ).onSuccess { searchResult ->
+                        val book = searchResult.first
                         if (groupId > 0) {
                             book.group = groupId
                         }
@@ -178,8 +200,8 @@ class BookshelfViewModel(application: Application) : BaseViewModel(application) 
                     }
                 }
             }
-        }.onError {
-            it.printOnDebug()
+        }.onError { error ->
+            error.printOnDebug()
         }.onFinally {
             context.toastOnUi(R.string.success)
         }

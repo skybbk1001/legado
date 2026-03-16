@@ -412,7 +412,7 @@ class ReviewDetailDialog() : BaseDialogFragment(R.layout.dialog_recycler_view) {
                 chapter = chapter,
                 coroutineContext = coroutineContext
             )
-            val body = analyzeUrl.getStrResponseAwait(useWebView = false).body ?: ""
+            val body = analyzeUrl.getStrResponseAwait().body ?: ""
             val result = parseReviewDetailList(
                 body = body,
                 rule = rule,

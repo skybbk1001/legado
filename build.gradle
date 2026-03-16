@@ -32,6 +32,12 @@ plugins {
     alias libs.plugins.download apply false
 }
 
+def sqliteTmpDir = new File(rootDir, ".gradle/sqlite-temp")
+if (!sqliteTmpDir.exists()) {
+    sqliteTmpDir.mkdirs()
+}
+System.setProperty("org.sqlite.tmpdir", sqliteTmpDir.absolutePath)
+
 tasks.register('clean', Delete) {
     delete rootProject.layout.buildDirectory
 }
