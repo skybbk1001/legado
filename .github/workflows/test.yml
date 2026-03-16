@@ -13,11 +13,6 @@ on:
   pull_request:
     paths-ignore:
       - '**/modules/web/**'
-  workflow_run:
-    workflows: [Build Web]
-    branches: [master]
-    types:
-      - completed
   workflow_dispatch:
 
 concurrency:

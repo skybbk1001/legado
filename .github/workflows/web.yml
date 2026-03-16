@@ -26,6 +26,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
+          cache-dependency-path: modules/web/pnpm-lock.yaml
 
       - uses: pnpm/action-setup@v4
         name: Install pnpm
@@ -34,24 +36,10 @@ jobs:
           version: 9
           run_install: false
 
-      - name: Get pnpm store directory
-        id: pnpm-cache
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
-
-      - uses: actions/cache@v4
-        name: Setup pnpm cache
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/web/package.json') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
       - name: Build and move files
         working-directory: modules/web
         run: |
-          pnpm i
+          pnpm install --frozen-lockfile
           pnpm build
           version="v$(date -d "8 hour" -u +3.%y.%m%d%H)"
           echo "APP_VER=$version" >> $GITHUB_ENV
