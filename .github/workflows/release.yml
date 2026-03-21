@@ -98,7 +98,9 @@ jobs:
       - name: Organize the Files
         run: |
           mkdir -p ${{ github.workspace }}/apk/
-          cp -rf ${{ github.workspace }}/app/build/outputs/apk/*/*/*.apk ${{ github.workspace }}/apk/
+          for file in `ls ${{ github.workspace }}/app/build/outputs/apk/*/*/*.apk`; do
+            cp "$file" ${{ github.workspace }}/apk/legado_${{ env.product }}_${{ env.VERSION }}.apk
+          done
           
       - name: Upload App To Artifact
         uses: actions/upload-artifact@v4

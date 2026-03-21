@@ -147,32 +147,6 @@ ksp {
     //arg("room.schemaLocation", "$projectDir/schemas")
 }
 
-afterEvaluate {
-    android.productFlavors.configureEach { flavor ->
-        android.buildTypes.configureEach { buildType ->
-            def variantName = "${flavor.name}${buildType.name.capitalize()}"
-            tasks.named("assemble${variantName.capitalize()}").configure {
-                doLast {
-                    def outputDir = layout.buildDirectory.dir("outputs/apk/${flavor.name}/${buildType.name}").get().asFile
-                    if (!outputDir.exists()) return
-                    def apkFiles = outputDir.listFiles()?.findAll { it.isFile() && it.name.endsWith(".apk") } ?: []
-                    if (apkFiles.size() != 1) return
-                    def targetName = "${name}_${flavor.name}_${version}.apk"
-                    def sourceFile = apkFiles.first()
-                    if (sourceFile.name == targetName) return
-                    def targetFile = new File(outputDir, targetName)
-                    if (targetFile.exists() && !targetFile.delete()) {
-                        throw new GradleException("无法删除旧的 APK: ${targetFile.absolutePath}")
-                    }
-                    if (!sourceFile.renameTo(targetFile)) {
-                        throw new GradleException("无法将 ${sourceFile.name} 重命名为 ${targetName}")
-                    }
-                }
-            }
-        }
-    }
-}
-
 dependencies {
     //compileOnly "com.android.tools.build:gradle:$agp_version"
     //noinspection GradleDependency,GradlePackageUpdate
