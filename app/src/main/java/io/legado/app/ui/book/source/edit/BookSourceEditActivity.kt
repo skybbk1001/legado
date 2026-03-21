@@ -72,14 +72,16 @@ class BookSourceEditActivity :
     private val adapter by lazy {
         BookSourceEditAdapter { entity ->
             val requestId = java.util.UUID.randomUUID().toString()
-            unsafeEditRequests[requestId] = entity
-            showDialogFragment(
-                WebCodeDialog(
+            if (
+                WebCodeDialog.show(
+                    supportFragmentManager,
                     entity.value.orEmpty(),
                     requestId = requestId,
                     title = entity.hint
                 )
-            )
+            ) {
+                unsafeEditRequests[requestId] = entity
+            }
         }
     }
     private val sourceEntities: ArrayList<EditEntity> = ArrayList()

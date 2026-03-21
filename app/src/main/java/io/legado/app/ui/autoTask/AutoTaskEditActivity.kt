@@ -26,7 +26,6 @@ import io.legado.app.utils.imeHeight
 import io.legado.app.utils.setEdgeEffectColor
 import io.legado.app.utils.setOnApplyWindowInsetsListenerCompat
 import io.legado.app.utils.showHelp
-import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.startActivity
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
@@ -52,14 +51,16 @@ class AutoTaskEditActivity :
     private val webEditRequests = linkedMapOf<String, EditEntity>()
     private val adapter = AutoTaskEditAdapter { entity ->
         val requestId = java.util.UUID.randomUUID().toString()
-        webEditRequests[requestId] = entity
-        showDialogFragment(
-            WebCodeDialog(
+        if (
+            WebCodeDialog.show(
+                supportFragmentManager,
                 entity.value.orEmpty(),
                 requestId = requestId,
                 title = entity.hint
             )
-        )
+        ) {
+            webEditRequests[requestId] = entity
+        }
     }
     private val fieldMap = linkedMapOf<String, EditEntity>()
     private var task: AutoTaskRule? = null

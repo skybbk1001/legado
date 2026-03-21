@@ -313,14 +313,16 @@ class HttpTtsEditDialog() : BaseDialogFragment(R.layout.dialog_http_tts_edit, tr
 
     private fun openWebEditor(view: CodeView, title: String) {
         val requestId = java.util.UUID.randomUUID().toString()
-        webEditRequests[requestId] = view
-        showDialogFragment(
-            WebCodeDialog(
+        if (
+            WebCodeDialog.show(
+                childFragmentManager,
                 code = view.text?.toString().orEmpty(),
                 requestId = requestId,
                 title = title
             )
-        )
+        ) {
+            webEditRequests[requestId] = view
+        }
     }
 
     override fun onCodeSave(code: String, requestId: String?) {

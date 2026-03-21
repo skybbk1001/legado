@@ -62,14 +62,16 @@ class RssSourceEditActivity :
     private val adapter by lazy {
         RssSourceEditAdapter { entity ->
             val requestId = java.util.UUID.randomUUID().toString()
-            webEditRequests[requestId] = entity
-            showDialogFragment(
-                WebCodeDialog(
+            if (
+                WebCodeDialog.show(
+                    supportFragmentManager,
                     entity.value.orEmpty(),
                     requestId = requestId,
                     title = entity.hint
                 )
-            )
+            ) {
+                webEditRequests[requestId] = entity
+            }
         }
     }
     private val sourceEntities: ArrayList<EditEntity> = ArrayList()
