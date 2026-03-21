@@ -1619,7 +1619,8 @@ class ReadBookActivity : BaseReadBookActivity(),
             }
         )
         reviewSummaryAppliedKey = key
-        ReadBook.loadContent(resetPageOffset = false)
+        // 段评列刷新只需要重绘当前阅读视图，避免重新走 curPageChanged() 打断朗读位置。
+        binding.readView.upContent(relativePosition = 0, resetPageOffset = false)
     }
 
     private fun prefetchAdjacentReviewSummary(
