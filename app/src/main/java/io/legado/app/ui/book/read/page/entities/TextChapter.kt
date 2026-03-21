@@ -23,6 +23,7 @@ data class TextChapter(
     val position: Int,
     val title: String,
     val chaptersSize: Int,
+    val hasBodyContent: Boolean,
     val sameTitleRemoved: Boolean,
     val isVip: Boolean,
     val isPay: Boolean,
@@ -311,6 +312,7 @@ data class TextChapter(
     companion object {
         val emptyTextChapter = TextChapter(
             BookChapter(), -1, "emptyTextChapter", -1,
+            hasBodyContent = false,
             sameTitleRemoved = false,
             isVip = false,
             isPay = false,

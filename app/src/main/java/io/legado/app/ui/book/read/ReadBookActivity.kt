@@ -1534,6 +1534,16 @@ class ReadBookActivity : BaseReadBookActivity(),
         }
         val book = ReadBook.book ?: return
         val chapterIndex = ReadBook.durChapterIndex
+        val textChapter = ReadBook.curTextChapter
+        if (textChapter != null &&
+            textChapter.chapter.index == chapterIndex &&
+            !textChapter.hasBodyContent
+        ) {
+            reviewSummaryAppliedKey = null
+            reviewSummaryLoadingKey = null
+            ChapterProvider.clearReviewProviders()
+            return
+        }
         val key = buildReviewSummaryKey(book, chapterIndex)
         if (reviewSummaryAppliedKey == key || reviewSummaryLoadingKey == key) return
         val cached = synchronized(reviewSummaryCache) { reviewSummaryCache[key] }
@@ -1628,6 +1638,13 @@ class ReadBookActivity : BaseReadBookActivity(),
         val token = reviewSummaryRequestToken
         for (idx in indices) {
             if (idx !in 0 until maxIndex) continue
+            val loadedChapter = sequenceOf(
+                ReadBook.prevTextChapter,
+                ReadBook.curTextChapter,
+                ReadBook.nextTextChapter
+            ).filterNotNull().firstOrNull { it.chapter.index == idx }
+            // 仅对已完成排版且确认存在正文的相邻章节做段评预取，避免空正文章节被竞态误触发。
+            if (loadedChapter == null || !loadedChapter.hasBodyContent) continue
             val key = buildReviewSummaryKey(book, idx)
             if (reviewSummaryLoadingKey == key) continue
             val hasCache = synchronized(reviewSummaryCache) { reviewSummaryCache.containsKey(key) }

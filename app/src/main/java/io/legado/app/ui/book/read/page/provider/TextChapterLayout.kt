@@ -79,7 +79,11 @@ class TextChapterLayout(
     private val isMiddleTitle = ReadBookConfig.isMiddleTitle
     private val textFullJustify = ReadBookConfig.textFullJustify
     private val pageAnim = book.getPageAnim()
-    private val reviewTitleOffset = 1
+    private val reviewTitleOffset = if (titleMode != 2 || bookChapter.isVolume || bookContent.textList.isEmpty()) {
+        1
+    } else {
+        0
+    }
 
     private var pendingTextPage = TextPage()
 
@@ -387,7 +391,7 @@ class TextChapterLayout(
                     prepareNextPageIfNeed(durY + height)
                 }
             }
-            val textLine = TextLine(isImage = true)
+            val textLine = TextLine(isImage = true, reviewTitleOffset = reviewTitleOffset)
             textLine.text = " "
             textLine.lineTop = durY + paddingTop
             durY += height
@@ -470,7 +474,7 @@ class TextChapterLayout(
             else -> durY
         }
         for (lineIndex in 0 until layout.lineCount) {
-            val textLine = TextLine(isTitle = isTitle)
+            val textLine = TextLine(isTitle = isTitle, reviewTitleOffset = reviewTitleOffset)
             prepareNextPageIfNeed(durY + textHeight)
             val lineStart = layout.getLineStart(lineIndex)
             val lineEnd = layout.getLineEnd(lineIndex)

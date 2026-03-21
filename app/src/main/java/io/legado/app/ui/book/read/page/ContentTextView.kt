@@ -736,7 +736,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
 
     private fun resolveReviewId(textLine: TextLine): Int {
         if (textLine.isTitle) return -1
-        val reviewId = textLine.paragraphNum - 1
+        val reviewId = textLine.paragraphNum - textLine.reviewTitleOffset
         return if (reviewId > 0) reviewId else textLine.paragraphNum
     }
 }

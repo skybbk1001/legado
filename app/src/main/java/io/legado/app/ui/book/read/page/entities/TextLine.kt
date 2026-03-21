@@ -45,6 +45,7 @@ data class TextLine(
     var wordSpacing: Float = 0f,
     var exceed: Boolean = false,
     var onlyTextColumn: Boolean = true,
+    var reviewTitleOffset: Int = 0,
 ) {
 
     val columns: List<BaseColumn> get() = textColumns

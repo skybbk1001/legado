@@ -215,6 +215,11 @@ object ChapterProvider {
         chapterSize: Int,
     ): TextChapter {
         val contents = bookContent.textList
+        val chapterReviewTitleOffset = if (ReadBookConfig.titleMode != 2 || bookChapter.isVolume) {
+            reviewTitleOffset
+        } else {
+            0
+        }
         val textPages = arrayListOf<TextPage>()
         val stringBuilder = StringBuilder()
         var absStartX = paddingLeft
@@ -231,6 +236,7 @@ object ChapterProvider {
                     titlePaint,
                     titlePaintTextHeight,
                     titlePaintFontMetrics,
+                    reviewTitleOffset = chapterReviewTitleOffset,
                     isTitle = true,
                     emptyContent = contents.isEmpty(),
                     isVolumeTitle = bookChapter.isVolume
@@ -268,6 +274,7 @@ object ChapterProvider {
                     contentPaint,
                     contentPaintTextHeight,
                     contentPaintFontMetrics,
+                    reviewTitleOffset = chapterReviewTitleOffset,
                     srcList = srcList
                 ).let {
                     absStartX = it.first
@@ -288,7 +295,8 @@ object ChapterProvider {
                             stringBuilder,
                             contentPaint,
                             contentPaintTextHeight,
-                            contentPaintFontMetrics
+                            contentPaintFontMetrics,
+                            reviewTitleOffset = chapterReviewTitleOffset
                         ).let {
                             absStartX = it.first
                             durY = it.second
@@ -302,7 +310,8 @@ object ChapterProvider {
                         textPages,
                         contentPaintTextHeight,
                         stringBuilder,
-                        book.getImageStyle()
+                        book.getImageStyle(),
+                        reviewTitleOffset = chapterReviewTitleOffset
                     ).let {
                         absStartX = it.first
                         durY = it.second
@@ -319,7 +328,8 @@ object ChapterProvider {
                             stringBuilder,
                             contentPaint,
                             contentPaintTextHeight,
-                            contentPaintFontMetrics
+                            contentPaintFontMetrics,
+                            reviewTitleOffset = chapterReviewTitleOffset
                         ).let {
                             absStartX = it.first
                             durY = it.second
@@ -356,6 +366,7 @@ object ChapterProvider {
             bookChapter.index, displayTitle,
             //textPages,
             chapterSize,
+            contents.isNotEmpty(),
             bookContent.sameTitleRemoved,
             bookChapter.isVip,
             bookChapter.isPay,
@@ -376,6 +387,7 @@ object ChapterProvider {
             bookChapter,
             bookChapter.index, displayTitle,
             chapterSize,
+            bookContent.textList.isNotEmpty(),
             bookContent.sameTitleRemoved,
             bookChapter.isVip,
             bookChapter.isPay,
@@ -399,6 +411,7 @@ object ChapterProvider {
         textHeight: Float,
         stringBuilder: StringBuilder,
         imageStyle: String?,
+        reviewTitleOffset: Int = ChapterProvider.reviewTitleOffset,
     ): Pair<Int, Float> {
         var absStartX = x
         var durY = y
@@ -490,7 +503,7 @@ object ChapterProvider {
                     }
                 }
             }
-            val textLine = TextLine(isImage = true)
+            val textLine = TextLine(isImage = true, reviewTitleOffset = reviewTitleOffset)
             textLine.lineTop = durY + paddingTop
             durY += height
             textLine.lineBottom = durY + paddingTop
@@ -523,6 +536,7 @@ object ChapterProvider {
         textPaint: TextPaint,
         textHeight: Float,
         fontMetrics: FontMetrics,
+        reviewTitleOffset: Int = ChapterProvider.reviewTitleOffset,
         isTitle: Boolean = false,
         emptyContent: Boolean = false,
         isVolumeTitle: Boolean = false,
@@ -565,7 +579,7 @@ object ChapterProvider {
             else -> y
         }
         for (lineIndex in 0 until layout.lineCount) {
-            val textLine = TextLine(isTitle = isTitle)
+            val textLine = TextLine(isTitle = isTitle, reviewTitleOffset = reviewTitleOffset)
             if (durY + textHeight > visibleHeight) {
                 val textPage = textPages.last()
                 if (doublePage && absStartX < viewWidth / 2) {
@@ -994,6 +1008,7 @@ object ChapterProvider {
                 val count = getReviewCount(
                     paragraphNum = line.paragraphNum,
                     isTitle = line.isTitle,
+                    titleOffset = line.reviewTitleOffset,
                     chapterIndex = chapterIndex
                 )
                 var changed = false
@@ -1049,10 +1064,15 @@ object ChapterProvider {
     private fun updateReviewCount(
         textLine: TextLine,
         paragraphNum: Int,
-        titleOffset: Int = reviewTitleOffset,
+        titleOffset: Int? = null,
         chapterIndex: Int = ReadBook.durChapterIndex,
     ) {
-        val count = getReviewCount(paragraphNum, textLine.isTitle, titleOffset, chapterIndex)
+        val count = getReviewCount(
+            paragraphNum,
+            textLine.isTitle,
+            titleOffset ?: textLine.reviewTitleOffset,
+            chapterIndex
+        )
         if (count <= 0) return
         textLine.columns.forEach { column ->
             if (column is ReviewColumn) {
@@ -1063,11 +1083,16 @@ object ChapterProvider {
 
     fun appendReviewColumnIfNeeded(
         textLine: TextLine,
-        titleOffset: Int = reviewTitleOffset,
+        titleOffset: Int? = null,
         chapterIndex: Int = ReadBook.durChapterIndex,
     ) {
         if (textLine.columns.any { it is ReviewColumn }) return
-        val count = getReviewCount(textLine.paragraphNum, textLine.isTitle, titleOffset, chapterIndex)
+        val count = getReviewCount(
+            textLine.paragraphNum,
+            textLine.isTitle,
+            titleOffset ?: textLine.reviewTitleOffset,
+            chapterIndex
+        )
         if (count <= 0) return
         val reviewColumn = ReviewColumn(start = 0f, end = 0f, count = count)
         updateReviewColumnLayout(reviewColumn, textLine)
