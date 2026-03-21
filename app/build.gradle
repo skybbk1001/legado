@@ -7,7 +7,6 @@ plugins {
 //    id "com.google.gms.google-services"
 
     alias libs.plugins.android.application
-    alias libs.plugins.kotlin.android
     alias libs.plugins.kotlin.parcelize
     alias libs.plugins.room
     alias libs.plugins.ksp
@@ -111,24 +110,8 @@ android {
         }
     }
 
-    android.applicationVariants.configureEach { variant ->
-        variant.outputs.configureEach {
-            def flavor = variant.productFlavors[0].name
-            outputFileName = "${name}_${flavor}_${defaultConfig.versionName}.apk"
-        }
-    }
-
-
     room {
         schemaDirectory "$projectDir/schemas"
-    }
-    // 设定Room的KSP参数
-    ksp {
-        arg("room.incremental", "true")
-        arg("room.expandProjection", "true")
-        arg("room.generateKotlin", "false")
-        //arg("room.schemaLocation", "$projectDir/schemas")
-
     }
 
     compileOptions {
@@ -154,6 +137,14 @@ android {
             //options.compilerArgs << "-Xlint:unchecked"
         }
     }
+}
+
+// 设定Room的KSP参数
+ksp {
+    arg("room.incremental", "true")
+    arg("room.expandProjection", "true")
+    arg("room.generateKotlin", "false")
+    //arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
